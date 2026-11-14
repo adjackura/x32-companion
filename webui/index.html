@@ -1,0 +1,2362 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>X32 Console Companion</title>
+<style>
+:root{
+  --bg:#0d1117;--panel:#151b23;--panel2:#1b222d;--border:#2b3544;
+  --text:#e6edf3;--muted:#8b949e;--accent:#2f81f7;--cyan:#39c5cf;
+  --green:#2ea043;--amber:#d29922;--red:#da3633;--solo:#e3b341;
+  --font:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --target:34px;
+}
+@media(pointer:coarse),(max-width:52rem){:root{--target:44px}}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{min-block-size:100dvh;background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;overflow-wrap:anywhere}
+button,input,select{font:inherit;color:inherit}
+.mono{font-family:var(--mono)}
+.muted{color:var(--muted)}
+
+.app{display:grid;grid-template-rows:auto minmax(0,1fr) auto;block-size:100dvh;inline-size:100dvw;overflow:hidden}
+.topbar{grid-row:1;display:flex;align-items:center;gap:6px;padding:max(4px,env(safe-area-inset-top)) max(8px,env(safe-area-inset-right)) 4px max(8px,env(safe-area-inset-left));background:#11161d;border-bottom:1px solid var(--border);min-height:52px;flex-wrap:nowrap;overflow:hidden}
+.brand{display:flex;align-items:center;gap:6px;font-weight:800;letter-spacing:.3px;white-space:nowrap;min-width:0}
+.brand-long{display:none}
+@media(min-width:44rem){.brand-long{display:inline}}
+.badge{display:inline-flex;align-items:center;gap:5px;min-height:30px;padding:4px 9px;border-radius:999px;font-size:11px;font-weight:700;border:1px solid var(--border);background:var(--panel2);white-space:nowrap;max-width:170px;overflow:hidden;text-overflow:ellipsis;flex:none}
+.badge.live{background:#122b1a;border-color:#2ea043;color:#56d364}
+.badge.warn{background:#321414;border-color:#da3633;color:#ff7b72}
+@media(max-width:28rem){#netBadge{display:none}}
+.dot{width:7px;height:7px;border-radius:50%;background:currentColor;flex:none}
+.spacer{flex:1;min-width:2px}
+
+.tabbar{grid-row:3;display:flex;align-items:stretch;background:#11161d;border-top:1px solid var(--border);padding:2px max(4px,env(safe-area-inset-right)) max(4px,env(safe-area-inset-bottom)) max(4px,env(safe-area-inset-left));overflow-x:auto;scrollbar-width:none;gap:2px}
+.tabbar::-webkit-scrollbar{display:none}
+.tabbtn{position:relative;flex:1 0 0;min-width:58px;min-block-size:max(48px,var(--target));background:transparent;color:var(--muted);border:1px solid transparent;border-radius:6px;padding:4px;font-weight:700;font-size:11px;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;white-space:nowrap}
+.tabbtn svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.tabbtn[aria-selected="true"]{color:var(--text)}
+.tabbtn[aria-selected="true"]::after{content:"";position:absolute;left:12%;right:12%;top:0;border-top:3px solid var(--cyan)}
+.tabbtn:focus-visible,.btn:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible,[tabindex="0"]:focus-visible{outline:2px solid var(--cyan);outline-offset:2px}
+
+@media(min-width:52rem){
+  .app{grid-template-rows:auto auto minmax(0,1fr)}
+  .tabbar{grid-row:2;border-top:none;border-bottom:1px solid var(--border);padding:2px max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left));justify-content:flex-start;gap:6px}
+  .tabbtn{flex:0 0 auto;flex-direction:row;min-block-size:38px;padding:6px 12px;font-size:12px;gap:6px}
+  .tabbtn[aria-selected="true"]::after{top:auto;bottom:0;left:6px;right:6px;border-top:none;border-bottom:3px solid var(--cyan)}
+}
+
+.ov-src{font-size:9px;margin-left:3px;opacity:.72}
+.ov-src.custom{opacity:1;text-decoration:underline;font-weight:800}
+.ov-src.off{opacity:1;background:#321414;color:#ff7b72;padding:0 3px;border-radius:3px;font-weight:800}
+
+/* Config */
+#tab-config{container:cfg / inline-size}
+.cfg-grid{display:grid;grid-template-columns:1fr;gap:8px}
+@container cfg (min-width:46rem){.cfg-grid{grid-template-columns:minmax(0,1.05fr) minmax(0,.95fr)}}
+.cfg-3row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.cfg-4row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.cfg-3row .btn,.cfg-4row .btn{min-inline-size:0;padding:4px 5px;font-size:11px}
+.cfg-4grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.cfg-4grid .btn{min-inline-size:0;min-block-size:max(42px,var(--target));padding:4px 3px;font-size:11px;flex-direction:column;gap:1px;line-height:1.15}
+.cfg-4grid .btn.shared{border-color:var(--amber)}
+.cfg-sub{font-size:9px;opacity:.8}
+.cfg-srow{display:flex;align-items:center;gap:6px;flex-wrap:nowrap}
+.cfg-srow .rslider{flex:1;min-width:0}
+.btn.tog[aria-pressed="true"]{background:var(--accent);border-color:#58a6ff;color:#fff}
+.btn.tog-g[aria-pressed="true"]{background:#238636;border-color:#2ea043;color:#fff}
+.btn.tog-r[aria-pressed="true"]{background:#b62324;border-color:#f85149;color:#fff}
+.btn.tog-a[aria-pressed="true"]{background:#9e6a03;border-color:#d29922;color:#fff}
+
+.main{grid-row:2;min-height:0;overflow:hidden;position:relative}
+@media(min-width:52rem){.main{grid-row:3}}
+.view{display:flex;flex-direction:column;gap:8px;height:100%;width:100%;overflow-y:auto;overflow-x:hidden;padding:6px max(8px,env(safe-area-inset-right)) 10px max(8px,env(safe-area-inset-left));overscroll-behavior:contain}
+.view[hidden]{display:none}
+
+.btn{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:6px;min-block-size:var(--target);min-inline-size:var(--target);padding:6px 11px;font-weight:700;font-size:12px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:5px;white-space:nowrap}
+.btn:active{transform:translateY(1px)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn.primary{background:var(--accent);border-color:#58a6ff;color:#fff}
+.btn.green{background:#238636;border-color:#2ea043;color:#fff}
+.btn.red{background:#b62324;border-color:#f85149;color:#fff}
+.btn.amber{background:#9e6a03;border-color:#d29922;color:#fff}
+.btn.sm{min-block-size:var(--target);min-inline-size:var(--target);padding:4px 8px;font-size:11px}
+.clearsolo{display:none;background:#9e6a03;border:1px solid #f2cc60;color:#fff;font-weight:800}
+.clearsolo.on{display:inline-flex}
+.row{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.hscroll{display:flex;gap:5px;align-items:center;overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;padding-bottom:2px}
+.hscroll::-webkit-scrollbar{display:none}
+.hscroll>*{flex:none}
+.chk-label{display:inline-flex;align-items:center;gap:6px;min-block-size:var(--target);padding:2px 6px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap}
+.chk-label input[type=checkbox]{width:18px;height:18px;accent-color:var(--cyan);flex:none}
+
+.card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:7px}
+.card-title{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);display:flex;justify-content:space-between;align-items:center;gap:6px}
+.input-lg,select.input-lg{background:#090c10;border:1px solid var(--border);color:var(--text);border-radius:6px;min-block-size:var(--target);padding:8px 10px;font-size:max(1rem,1em);font-weight:700;width:100%}
+.input-lg.mono{font-family:var(--mono)}
+.input-lg:focus{border-color:var(--cyan)}
+
+/* Custom cross-browser range slider with guaranteed cyan progress fill */
+.rslider{
+  --slider-track-size:8px;--slider-thumb-w:24px;--slider-thumb-h:28px;
+  --slider-fill:calc(((var(--control-value,0) - var(--attr-min,0)) / (var(--attr-max,1) - var(--attr-min,0))) * 100%);
+  appearance:none;-webkit-appearance:none;background:transparent;width:100%;height:var(--target);margin:0;padding:0;border:0;cursor:pointer;touch-action:pan-y
+}
+@supports(opacity:progress(1,0,100)){
+  .rslider{--slider-fill:calc(progress(var(--control-value,0),var(--attr-min,0),var(--attr-max,1)) * 100%)}
+}
+input[type="range"].rslider::-webkit-slider-runnable-track{
+  height:var(--slider-track-size);border-radius:999px;border:1px solid #2b3544;
+  background:linear-gradient(to right,var(--cyan) var(--slider-pct,var(--slider-fill,0%)),#222933 var(--slider-pct,var(--slider-fill,0%)))
+}
+input[type="range"].rslider::-webkit-slider-thumb{
+  -webkit-appearance:none;appearance:none;width:var(--slider-thumb-w);height:var(--slider-thumb-h);
+  margin-block-start:calc((var(--slider-track-size) - var(--slider-thumb-h)) / 2 - 1px);
+  border-radius:6px;background:#e6edf3;border:2px solid var(--cyan);box-shadow:0 1px 4px rgba(0,0,0,.6)
+}
+input[type="range"].rslider::-moz-range-track{height:var(--slider-track-size);border-radius:999px;border:1px solid #2b3544;background:#222933}
+input[type="range"].rslider::-moz-range-progress{height:var(--slider-track-size);border-radius:999px;background:var(--cyan)}
+input[type="range"].rslider::-moz-range-thumb{width:var(--slider-thumb-w);height:var(--slider-thumb-h);border-radius:6px;background:#e6edf3;border:2px solid var(--cyan);box-shadow:0 1px 4px rgba(0,0,0,.6)}
+
+/* Overview: single compact top nav, scrollable channel canvas, thumb-zone selected strip deck */
+#tab-overview{container:ov / inline-size;overflow:hidden;padding-bottom:6px}
+.ov-layout{display:flex;flex-direction:column;gap:6px;height:100%;min-height:0}
+.ov-nav{display:flex;align-items:center;gap:5px;flex:none}
+.ov-subtabs{flex:1;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:4px;min-width:0}
+.ov-subtabs .btn{padding:4px;min-inline-size:0;font-size:11px}
+.ov-qm-btn{flex:none;padding:4px 8px}
+.ov-desktop-status{display:none;font-size:11px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ov-scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;overscroll-behavior:contain;padding-right:1px}
+.ov-left,.ov-right,.ov-groups{display:flex;flex-direction:column;gap:8px;min-height:0}
+.ch-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.ch-tile{contain:layout style paint;background:var(--panel);border:1px solid var(--border);border-radius:7px;display:flex;flex-direction:column;overflow:hidden;cursor:pointer;min-height:60px;user-select:none}
+.ch-tile.sel{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan)}
+.ch-tile.muted{opacity:.78}
+.scribble{padding:4px 6px;font-size:11px;font-weight:700;display:flex;flex-direction:column;justify-content:center;border-bottom:1px solid rgba(0,0,0,.35);min-height:34px;text-align:left}
+.scribble-top{display:flex;justify-content:space-between;gap:6px;width:100%;font-size:10px;opacity:.88;font-family:var(--mono)}
+.scribble-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:12px;line-height:1.2;width:100%}
+.tile-body{display:flex;align-items:center;gap:6px;padding:4px 6px;flex:1}
+.vu-track{flex:1;height:7px;background:#090c10;border-radius:4px;overflow:hidden;border:1px solid #222933}
+.vu-fill{height:100%;width:0%;background:linear-gradient(90deg,#2ea043 0%,#2ea043 68%,#d29922 86%,#f85149 100%);transition:width .06s linear}
+.tile-flags{display:flex;gap:3px;align-items:center;font-family:var(--mono);font-size:10px;flex:none}
+.pill-m,.pill-s{padding:1px 4px;border-radius:3px;font-size:10px;font-weight:800;background:#282e38;color:#7d8590;line-height:1.3}
+.pill-m.on{background:#da3633;color:#fff}
+.pill-m.grp{background:#9e470e;color:#ffd8b5}
+.pill-s.on{background:#e3b341;color:#111}
+
+.ov-sel-deck{flex:none;gap:5px;padding:7px 8px;box-shadow:0 -4px 14px rgba(0,0,0,.35)}
+.ov-sel-row{display:flex;align-items:center;gap:5px;flex-wrap:nowrap}
+.ov-sel-banner{flex:1;min-width:0;border-radius:6px;border:1px solid rgba(255,255,255,.15);padding:4px 8px;cursor:pointer;min-block-size:var(--target)}
+.ov-sel-actions{display:flex;gap:4px;flex:none}
+.ov-sel-fader-row{display:flex;align-items:center;gap:5px;flex-wrap:nowrap}
+.ov-sel-fader-row .rslider{flex:1;min-width:0}
+.follow-chip{display:inline-flex;align-items:center;gap:5px;min-block-size:var(--target);padding:0 8px;border:1px solid var(--border);border-radius:6px;background:var(--panel2);font-size:11px;font-weight:700;cursor:pointer;flex:none}
+.follow-chip input{width:16px;height:16px;accent-color:var(--cyan)}
+.ov-status{display:none;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+
+.dca-mini-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px}
+.dca-pill{border:1px solid var(--border);border-radius:6px;min-block-size:var(--target);padding:6px 8px;display:flex;align-items:center;justify-content:space-between;gap:4px;cursor:pointer;background:var(--panel2);font-size:12px;font-weight:700;user-select:none}
+.dca-pill.muted{border-color:#da3633;background:#261214}
+.mg-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.mg-btn{min-block-size:var(--target);min-inline-size:var(--target);padding:6px 4px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-weight:800;font-size:12px;cursor:pointer;text-align:center}
+.mg-btn.on{background:#b62324;border-color:#f85149;color:#fff}
+
+.ov-filter-ch1 #chGrid .ch-tile:nth-child(n+17),.ov-filter-ch1 .ov-right{display:none}
+.ov-filter-ch2 #chGrid .ch-tile:nth-child(-n+16),.ov-filter-ch2 .ov-right{display:none}
+.ov-filter-all .ov-right{display:none}
+.ov-filter-grp .ov-left{display:none}
+@container ov (min-width:34rem){.ch-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+@container ov (min-width:52rem){
+  .ov-layout{display:grid;grid-template-columns:minmax(0,1fr) 300px;grid-template-rows:auto minmax(0,1fr);gap:8px}
+  .ov-nav{grid-column:1;grid-row:1;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:6px 8px}
+  .ov-subtabs{display:none}
+  .ov-desktop-status{display:block}
+  .ov-scroll{display:contents}
+  .ov-left{grid-column:1;grid-row:2;overflow-y:auto;padding-right:2px}
+  .ch-grid{grid-template-columns:repeat(8,minmax(0,1fr))}
+  .ov-sel-deck{grid-column:2;grid-row:1;box-shadow:none}
+  .ov-status{display:block}
+  .ov-right{grid-column:2;grid-row:2;display:flex !important;overflow-y:auto}
+  .ov-filter-ch1 #chGrid .ch-tile,.ov-filter-ch2 #chGrid .ch-tile{display:flex}
+  .ov-filter-grp .ov-left{display:flex}
+}
+
+/* Scribble */
+#tab-scribble{container:sc / inline-size}
+.cat-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;width:100%}
+.cat-tabs .btn{padding:4px;min-inline-size:0;font-size:11px}
+.strip-pills{display:flex;gap:5px;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.strip-pills::-webkit-scrollbar{display:none}
+.sp-btn{flex:0 0 92px;min-block-size:var(--target);border:1px solid var(--border);border-radius:6px;padding:5px 6px;cursor:pointer;text-align:left;background:var(--panel2);color:var(--text);overflow:hidden}
+.sp-btn.sel{outline:2px solid var(--cyan);outline-offset:-1px}
+.sp-btn .n{font-size:9px;opacity:.8;font-family:var(--mono)}
+.sp-btn .t{font-size:11px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sc-editor{display:grid;grid-template-columns:1fr;gap:8px}
+.lcd-preview{border-radius:10px;padding:10px;border:2px solid var(--border);display:flex;flex-direction:column;justify-content:space-between;min-height:92px;box-shadow:inset 0 0 22px rgba(0,0,0,.35)}
+.lcd-preview-top{display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;font-weight:700}
+.lcd-preview-mid{display:flex;align-items:center;justify-content:center;gap:10px;margin:4px 0;min-height:42px}
+.lcd-icon-cv{width:40px;height:40px;flex:none;image-rendering:pixelated;cursor:pointer}
+.lcd-preview-name{font-size:21px;font-weight:800;letter-spacing:.4px;text-align:center}
+.lcd-preview-bot{display:flex;justify-content:space-between;font-size:11px;opacity:.9}
+.swatch-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+.swatch{min-block-size:var(--target);min-inline-size:var(--target);border-radius:6px;cursor:pointer;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;border:2px solid transparent}
+.swatch.sel{border-color:#fff;box-shadow:0 0 0 2px var(--cyan)}
+.inv-btn{background:var(--panel2);color:var(--text);border:1px solid var(--border)}
+.inv-btn.on{background:#e6edf3;color:#11151c;border-color:var(--cyan)}
+.icon-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(56px,1fr));gap:6px;max-height:58dvh;overflow-y:auto;padding:6px;background:var(--panel2);border:1px solid var(--border);border-radius:8px}
+.icon-tile{min-block-size:var(--target);min-inline-size:var(--target);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:4px;display:flex;flex-direction:column;align-items:center;cursor:pointer;color:var(--text)}
+.icon-tile.sel{border-color:var(--cyan);background:rgba(56,189,248,.16)}
+.icon-tile canvas{width:38px;height:38px;image-rendering:pixelated;display:block}
+.icon-tile span{font-size:9px;color:var(--muted)}
+.icon-grp{grid-column:1/-1;font-size:10px;font-weight:700;color:var(--muted);padding:4px 2px 1px;text-transform:uppercase}
+@container sc (min-width:44rem){
+  .cat-tabs{display:flex;flex:1;width:auto}
+  .cat-tabs .btn{flex:none;padding:6px 10px}
+  .strip-pills{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));overflow-x:visible}
+  .sc-editor{grid-template-columns:260px 1fr}
+  .swatch-grid{grid-template-columns:repeat(8,1fr) 84px}
+}
+
+/* Matrix */
+#tab-matrix{container:matrix / inline-size}
+.mx-mode-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.mx-mode-grid .btn,.mx-bank-grid .btn{padding:4px;min-inline-size:0;font-size:11px}
+.mx-bank-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin-top:5px}
+.matrix-scroll{flex:1;min-height:0;overflow:auto;padding:0;background:var(--panel);border:1px solid var(--border);border-radius:8px;overscroll-behavior:contain}
+.matrix-table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:3px;padding:4px}
+.matrix-table th,.matrix-table td{text-align:center;padding:1px}
+.matrix-table thead th{position:sticky;top:0;z-index:2;font-size:11px;background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:4px;min-block-size:var(--target);min-width:48px}
+.matrix-table thead th button{background:none;border:none;color:inherit;width:100%;min-block-size:36px;cursor:pointer;font-weight:700}
+.matrix-ch{position:sticky;left:0;z-index:1;text-align:left !important;background:var(--panel2);border:1px solid var(--border);border-radius:5px;padding:4px 6px !important;width:108px;min-width:96px;max-width:112px}
+.mx-row-lbl{max-width:96px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:700;font-size:11px}
+.matrix-table thead th:first-child{position:sticky;left:0;top:0;z-index:3;width:108px;min-width:96px;max-width:112px}
+.mcell{width:100%;min-width:46px;min-block-size:var(--target);border-radius:5px;border:1px solid var(--border);background:#11161e;color:var(--muted);font-weight:800;font-size:12px;cursor:pointer}
+.mcell.on{background:var(--accent);border-color:#79c0ff;color:#fff}
+.mcell.mg.on{background:#b62324;border-color:#f85149;color:#fff}
+.link-grid{display:grid;grid-template-columns:1fr;gap:6px;padding:8px}
+@container matrix (min-width:30rem){.link-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@container matrix (min-width:50rem){.link-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.link-card{background:var(--panel2);border:1px solid var(--border);border-radius:7px;min-block-size:var(--target);padding:8px 10px;width:100%;text-align:left;cursor:pointer;display:flex;justify-content:space-between;align-items:center}
+.link-card.on{border-color:var(--cyan);background:#102533}
+
+/* Faders */
+#tab-faders{container:faders / inline-size}
+.faders-wrap{display:flex;flex-direction:column;gap:7px;padding-bottom:6px}
+.fstrip{contain:layout style paint;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:7px 8px;display:grid;grid-template-columns:1fr auto;gap:6px 8px;align-items:center}
+.fstrip.sel{border-color:var(--cyan);box-shadow:0 0 0 1px var(--cyan)}
+.fstrip.master{border-color:var(--amber);background:#191712;order:-1}
+.fstrip-cap{border-radius:5px;padding:6px 8px;min-block-size:var(--target);text-align:left;cursor:pointer;font-weight:700;font-size:12px;min-width:0;border:none;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.fstrip-db{font-family:var(--mono);font-size:13px;color:var(--cyan);font-weight:800;text-align:right;white-space:nowrap}
+.fstrip-mid{grid-column:1;display:flex;flex-direction:column;gap:4px;min-width:0}
+.v-meter{height:7px;width:100%;background:#090c10;border:1px solid #262e39;border-radius:4px;overflow:hidden}
+.v-meter-fill{height:100%;width:var(--meter-pct,0%);background:linear-gradient(90deg,#2ea043 0%,#2ea043 68%,#d29922 86%,#f85149 100%);transition:width .06s linear}
+.v-slider-box{width:100%;display:flex;align-items:center}
+.fstrip-btns{grid-column:2;display:flex;gap:5px}
+.fstrip-btns button{min-inline-size:var(--target);min-block-size:var(--target);padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--panel2);color:var(--muted);font-weight:800;font-size:12px;cursor:pointer}
+.fstrip-btns button.solo.on{background:#e3b341;color:#111;border-color:#f2cc60}
+.fstrip-btns button.mute.on{background:#da3633;color:#fff;border-color:#ff7b72}
+
+@container faders (min-width:48rem){
+  .faders-wrap{display:grid;grid-template-columns:repeat(8,minmax(0,1fr)) 104px;gap:6px;flex:1;min-height:310px}
+  .fstrip{display:flex;flex-direction:column;align-items:center;gap:5px;padding:6px 5px}
+  .fstrip.master{order:0}
+  .fstrip-cap{width:100%;flex-direction:column;text-align:center;gap:1px;padding:4px}
+  .fstrip-mid{flex:1;flex-direction:row;align-items:center;justify-content:center;gap:8px;width:100%;min-height:152px}
+  .v-meter{width:10px;height:152px;display:flex;flex-direction:column-reverse}
+  .v-meter-fill{width:100%;height:var(--meter-pct,0%);background:linear-gradient(0deg,#2ea043 0%,#2ea043 68%,#d29922 86%,#f85149 100%);transition:height .06s linear}
+  .v-slider-box{width:44px;height:152px;justify-content:center;overflow:hidden}
+  .fstrip .rslider{width:144px;height:44px;flex:none;transform:rotate(-90deg);touch-action:none}
+  .fstrip-btns{width:100%;display:grid;grid-template-columns:1fr 1fr;gap:4px}
+  .fstrip-btns button{min-inline-size:0;min-block-size:36px;font-size:11px}
+}
+
+@media(hover:hover){.btn:hover{border-color:var(--cyan)}}
+
+/* Presets & Scenes */
+#tab-presets{container:pr / inline-size}
+.pr-mode-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.pr-bank-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px}
+.pr-bank-row .btn{min-inline-size:0;padding:4px}
+.pr-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+@container pr (min-width:48rem){.pr-grid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.pr-card{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:8px;min-height:68px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:3px}
+.pr-card.sel{border-color:var(--cyan);background:#162436}
+.pr-card.live{border-color:var(--green)}
+.pr-card-top{display:flex;justify-content:space-between;align-items:center;gap:4px;font-size:10px;font-weight:800;color:var(--muted)}
+.pr-card-name{font-size:13px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pr-card-sub{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.scope-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px}
+.scope-row .btn{min-inline-size:0;padding:4px}
+@container pr (min-width:34rem){.scope-row{display:flex;flex-wrap:wrap}.scope-row .btn{min-inline-size:var(--target);padding:4px 10px}}
+
+/* Modal Dialogs */
+dialog.modal-dlg{margin:auto;max-width:min(420px,94dvw);max-height:90dvh;width:100%;background:var(--panel);color:var(--text);border:1px solid var(--border);border-radius:12px;padding:16px;box-shadow:0 16px 48px rgba(0,0,0,.65)}
+dialog.modal-dlg:modal{overscroll-behavior:contain}
+dialog.modal-dlg::backdrop{background:rgba(6,9,14,.84);backdrop-filter:blur(4px);overscroll-behavior:contain;overflow:hidden}
+.auth-form{display:flex;flex-direction:column;gap:12px}
+.auth-input{letter-spacing:4px;text-align:center;font-size:1.35rem !important}
+.auth-err{color:#ff7b72;font-size:12px;font-weight:600;min-height:16px}
+@media(forced-colors:active){
+  .tabbtn[aria-selected="true"]::after{border-color:Highlight}
+  .ch-tile.sel,.sp-btn.sel,.fstrip.sel{outline-color:Highlight}
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <span>X32<span class="brand-long"> COMPANION</span></span>
+      <span id="connBadge" class="badge warn"><span class="dot"></span><span id="connText">NO CONSOLE</span></span>
+    </div>
+    <button id="clearSoloBtn" type="button" class="btn sm clearsolo" onclick="sendCmd({cmd:'clearSolo'})">CLEAR SOLO</button>
+    <div class="spacer"></div>
+    <span id="netBadge" class="badge mono">--</span>
+    <button id="lockBtn" type="button" class="btn sm" onclick="lockSession()" aria-label="Lock Web UI">Lock</button>
+  </header>
+
+  <nav class="tabbar" id="tabBar" role="tablist" aria-label="X32 Companion Views">
+    <button id="tbtn-overview" type="button" class="tabbtn" role="tab" aria-selected="true" tabindex="0" data-tab="overview">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      <span>Overview</span>
+    </button>
+    <button id="tbtn-config" type="button" class="tabbtn" role="tab" aria-selected="false" tabindex="-1" data-tab="config">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>
+      <span>Config</span>
+    </button>
+    <button id="tbtn-scribble" type="button" class="tabbtn" role="tab" aria-selected="false" tabindex="-1" data-tab="scribble">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      <span>Scribble</span>
+    </button>
+    <button id="tbtn-matrix" type="button" class="tabbtn" role="tab" aria-selected="false" tabindex="-1" data-tab="matrix">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 3h18v18H3z"/><path d="M3 9h18M3 15h18M9 3v18M15 3v18"/></svg>
+      <span>Matrix</span>
+    </button>
+    <button id="tbtn-faders" type="button" class="tabbtn" role="tab" aria-selected="false" tabindex="-1" data-tab="faders">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M2 14h4M10 8h4M18 16h4"/></svg>
+      <span>Faders</span>
+    </button>
+    <button id="tbtn-presets" type="button" class="tabbtn" role="tab" aria-selected="false" tabindex="-1" data-tab="presets">
+      <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h6l2 2h8v12H4z"/></svg>
+      <span>Presets</span>
+    </button>
+  </nav>
+
+  <main class="main">
+    <section id="tab-overview" class="view" role="tabpanel" aria-labelledby="tbtn-overview">
+      <div id="ovLayout" class="ov-layout ov-filter-ch1">
+        <div class="ov-nav">
+          <div id="ovSubTabs" class="ov-subtabs">
+            <button type="button" class="btn sm primary" data-ovf="ch1" onclick="setOvFilter('ch1')">Ch 1–16</button>
+            <button type="button" class="btn sm" data-ovf="ch2" onclick="setOvFilter('ch2')">Ch 17–32</button>
+            <button type="button" class="btn sm" data-ovf="all" onclick="setOvFilter('all')">All 32</button>
+            <button type="button" class="btn sm" data-ovf="grp" onclick="setOvFilter('grp')">Groups</button>
+          </div>
+          <span id="statusLine" class="mono muted ov-desktop-status">Ready</span>
+          <button id="modeMuteBtn" type="button" class="btn sm ov-qm-btn" aria-pressed="false" title="Tap tiles to toggle Mute instead of Select" onclick="toggleQuickMute()">Q-Mute</button>
+        </div>
+
+        <div class="ov-scroll">
+          <div class="ov-left">
+            <div id="chGrid" class="ch-grid"></div>
+          </div>
+
+          <aside class="ov-right">
+            <div class="ov-groups">
+              <div class="card">
+                <div class="card-title"><span>DCA Groups (Hold = Rename)</span><button type="button" class="btn sm" onclick="openDcaTab()">Matrix</button></div>
+                <div id="dcaMiniGrid" class="dca-mini-grid"></div>
+              </div>
+              <div class="card">
+                <div class="card-title"><span>Mute Groups (1–6)</span></div>
+                <div id="mgMiniGrid" class="mg-grid"></div>
+              </div>
+              <div class="card">
+                <div class="card-title"><span>Main LR</span><span id="mainDbLbl" class="mono" style="color:var(--cyan)">0.0 dB</span></div>
+                <div class="vu-track" style="height:8px"><div id="mainVuFill" class="vu-fill"></div></div>
+                <div class="row" style="flex-wrap:nowrap">
+                  <button type="button" class="btn sm" aria-label="Main LR level down" onclick="stepMainFader(-1)">&lt;</button>
+                  <input id="mainFaderMini" class="rslider" type="range" min="0" max="1" step="0.005" aria-label="Main LR Fader"
+                    style="flex:1;min-width:0"
+                    onpointerdown="draggingKey='main:0'" onpointerup="draggingKey=null"
+                    oninput="onMiniMainFader(this)">
+                  <button type="button" class="btn sm" aria-label="Main LR level up" onclick="stepMainFader(1)">&gt;</button>
+                  <button id="mainMuteMini" type="button" class="btn sm" onclick="toggleMainMute()">M</button>
+                </div>
+              </div>
+            </div>
+          </aside>
+        </div>
+
+        <div class="card ov-sel-deck" id="ovSelCard">
+          <div class="ov-sel-row">
+            <button id="selCardBanner" type="button" class="scribble ov-sel-banner" onclick="jumpToRenameSelected()">
+              <div class="scribble-top"><span id="selCardTag">CH 01</span><span id="selCardDb">0.0 dB</span></div>
+              <div id="selCardName" class="scribble-name" style="font-size:15px">--</div>
+            </button>
+            <div class="ov-sel-actions">
+              <button id="selMuteBtn" type="button" class="btn sm" aria-label="Mute selected strip" onclick="toggleSelMute()">M</button>
+              <button id="selSoloBtn" type="button" class="btn sm" aria-label="Solo selected strip" onclick="toggleSelSolo()">S</button>
+              <button type="button" class="btn sm" aria-label="Configure selected strip" onclick="jumpToConfigSelected()">Cfg</button>
+              <button type="button" class="btn sm primary" aria-label="Rename selected strip" onclick="jumpToRenameSelected()">Edit</button>
+            </div>
+          </div>
+          <div class="ov-sel-fader-row">
+            <button type="button" class="btn sm" aria-label="Decrease selected level" onclick="stepSelectedFader(-1)">&lt;</button>
+            <input id="selFaderSlider" class="rslider" type="range" min="0" max="1" step="0.004" aria-label="Selected strip level"
+              onpointerdown="draggingKey='sel'" onpointerup="draggingKey=null"
+              oninput="onSelFaderInput(this)">
+            <button type="button" class="btn sm" aria-label="Increase selected level" onclick="stepSelectedFader(1)">&gt;</button>
+            <label class="follow-chip" title="Follow X32 console selection">
+              <input id="followChk" type="checkbox" onchange="sendCmd({cmd:'setFollow',val:this.checked?1:0})"> Follow
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-config" class="view" role="tabpanel" aria-labelledby="tbtn-config" hidden>
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div id="cfgCatTabs" class="cfg-3row" style="flex:1;min-width:210px"></div>
+          <label class="chk-label">
+            <input id="followChk3" type="checkbox" onchange="sendCmd({cmd:'setFollow',val:this.checked?1:0})">
+            Follow X32
+          </label>
+        </div>
+        <div id="cfgStripPicker" class="strip-pills"></div>
+        <div class="row" style="flex-wrap:nowrap">
+          <button type="button" class="btn sm" aria-label="Previous channel or aux" onclick="stepCfgStrip(-1)">&lt;</button>
+          <div id="cfgBanner" class="scribble" style="flex:1;min-width:0;border-radius:6px;border:1px solid rgba(255,255,255,.15)">
+            <div class="scribble-top"><span id="cfgTag">CH 01</span><span id="cfgHdrSrc">In 01</span></div>
+            <div id="cfgName" class="scribble-name">--</div>
+          </div>
+          <button type="button" class="btn sm" aria-label="Next channel or aux" onclick="stepCfgStrip(1)">&gt;</button>
+          <button type="button" class="btn sm primary" onclick="jumpToRenameSelected()">Name</button>
+        </div>
+      </div>
+
+      <div class="cfg-grid">
+        <div class="card">
+          <div class="card-title"><span>Input Source</span><span id="cfgSrcCur" class="mono" style="color:var(--cyan)">In 01</span></div>
+          <div id="cfgSrcTabs" class="cfg-4row"></div>
+          <div id="cfgSrcGrid" class="cfg-4grid"></div>
+          <div class="row">
+            <button id="cfgSrcOffBtn" type="button" class="btn sm tog-r" style="flex:1" aria-pressed="false" onclick="setCfgSource(0)">OFF (Unpatch)</button>
+            <button id="cfgSrcDefBtn" type="button" class="btn sm" style="flex:1" onclick="setCfgSourceDefault()">1:1 Default</button>
+          </div>
+          <div id="cfgWarn" class="muted" style="font-size:11px;min-height:15px"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><label id="cfgGainLbl" for="cfgGainSlider">HA Gain</label><span id="cfgGainVal" class="mono" style="color:var(--cyan)">+0.0 dB</span></div>
+          <div class="cfg-srow">
+            <button type="button" class="btn sm" aria-label="Decrease gain or trim" onclick="stepCfgGain(-1)">&lt;</button>
+            <input id="cfgGainSlider" class="rslider" type="range" min="0" max="144" step="1"
+              onpointerdown="draggingKey='cfgG'" onpointerup="draggingKey=null" oninput="onCfgGainInput(this)">
+            <button type="button" class="btn sm" aria-label="Increase gain or trim" onclick="stepCfgGain(1)">&gt;</button>
+          </div>
+          <div class="cfg-3row">
+            <button id="cfgPhBtn" type="button" class="btn sm" aria-pressed="false" onclick="onCfgPhantomClick()">+48V OFF</button>
+            <button id="cfgPolBtn" type="button" class="btn sm tog-a" aria-pressed="false" onclick="toggleCfgInvert()">Pol Norm</button>
+            <button id="cfgTrimModeBtn" type="button" class="btn sm" onclick="onCfgTrimModeClick()">Show Trim</button>
+          </div>
+
+          <div id="cfgHpfWrap" style="display:flex;flex-direction:column;gap:7px;padding-top:4px;border-top:1px solid var(--border)">
+            <div class="card-title">
+              <button id="cfgHpfBtn" type="button" class="btn sm tog-g" aria-pressed="false" onclick="toggleCfgHpon()">Low Cut OFF</button>
+              <label for="cfgHpfSlider" id="cfgHpfVal" class="mono" style="color:var(--cyan)">80 Hz</label>
+            </div>
+            <div class="cfg-srow">
+              <button type="button" class="btn sm" aria-label="Decrease low cut frequency" onclick="stepCfgHpf(-1)">&lt;</button>
+              <input id="cfgHpfSlider" class="rslider" type="range" min="0" max="1" step="0.002"
+                onpointerdown="draggingKey='cfgH'" onpointerup="draggingKey=null" oninput="onCfgHpfInput(this)">
+              <button type="button" class="btn sm" aria-label="Increase low cut frequency" onclick="stepCfgHpf(1)">&gt;</button>
+            </div>
+            <div id="cfgHpfPresets" class="cfg-4row">
+              <button type="button" class="btn sm" data-hz="60" onclick="setCfgHpfPreset(60)">60 Hz</button>
+              <button type="button" class="btn sm" data-hz="80" onclick="setCfgHpfPreset(80)">80 Hz</button>
+              <button type="button" class="btn sm" data-hz="100" onclick="setCfgHpfPreset(100)">100 Hz</button>
+              <button type="button" class="btn sm" data-hz="120" onclick="setCfgHpfPreset(120)">120 Hz</button>
+            </div>
+          </div>
+          <p id="cfgHpfAuxNote" class="muted" style="font-size:11px;padding-top:4px;border-top:1px solid var(--border)" hidden>Low Cut (HPF) is available on Ch 01–32.</p>
+
+          <div style="display:flex;flex-direction:column;gap:7px;padding-top:4px;border-top:1px solid var(--border)">
+            <div class="card-title"><label for="cfgPanSlider">Pan / Balance</label><span id="cfgPanVal" class="mono" style="color:var(--cyan)">C</span></div>
+            <div class="cfg-srow">
+              <button type="button" class="btn sm" aria-label="Pan left" onclick="stepCfgPan(-2)">&lt;</button>
+              <input id="cfgPanSlider" class="rslider" type="range" min="-100" max="100" step="1"
+                onpointerdown="draggingKey='cfgP'" onpointerup="draggingKey=null" oninput="onCfgPanInput(this)">
+              <button type="button" class="btn sm" aria-label="Pan right" onclick="stepCfgPan(2)">&gt;</button>
+              <button type="button" class="btn sm" aria-label="Center pan" onclick="setCfgPanPct(0)">C</button>
+            </div>
+            <div class="row">
+              <button id="cfgMainStBtn" type="button" class="btn sm tog" style="flex:1" aria-pressed="true" onclick="toggleCfgMainSt()">Main LR: ON</button>
+              <button id="cfgLinkBtn" type="button" class="btn sm tog" style="flex:1" aria-pressed="false" onclick="toggleCfgLink()">Link Ch</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-scribble" class="view" role="tabpanel" aria-labelledby="tbtn-scribble" hidden>
+      <div class="card">
+        <div class="row" style="justify-content:space-between">
+          <div id="catTabs" class="cat-tabs"></div>
+          <label class="chk-label">
+            <input id="followChk2" type="checkbox" onchange="sendCmd({cmd:'setFollow',val:this.checked?1:0})">
+            Follow X32
+          </label>
+        </div>
+        <div id="stripPicker" class="strip-pills"></div>
+      </div>
+
+      <div class="sc-editor">
+        <div class="card">
+          <div class="card-title"><span>X32 Scribble Preview</span><span id="scTagBadge" class="mono">CH 01</span></div>
+          <div id="lcdPreview" class="lcd-preview">
+            <div class="lcd-preview-top"><span id="lcdTopTag">CH 01</span><span id="lcdColorCode">OFF</span></div>
+            <div class="lcd-preview-mid">
+              <canvas id="lcdIconCanvas" class="lcd-icon-cv" width="64" height="64" onclick="toggleIconGrid()"></canvas>
+              <div id="lcdName" class="lcd-preview-name">--</div>
+            </div>
+            <div class="lcd-preview-bot"><span id="lcdIconName">#1 None</span><span id="lcdState">0.0 dB</span></div>
+          </div>
+          <div>
+            <label for="iconSelect" style="font-size:11px;color:var(--muted);display:block;margin-bottom:4px">Strip Icon</label>
+            <div class="row" style="flex-wrap:nowrap">
+              <select id="iconSelect" class="input-lg" style="flex:1" onchange="selectIconId(Number(this.value))"></select>
+              <button id="iconGridBtn" type="button" class="btn sm" onclick="toggleIconGrid()">Grid</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><label for="nameInput">Strip Name (Max 12)</label></div>
+          <input id="nameInput" class="input-lg mono" type="text" maxlength="12" enterkeyhint="next" autocomplete="off" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Type strip name...">
+          <div class="row">
+            <button type="button" class="btn" onclick="saveNameAndStep(-1)">&lt; Prev</button>
+            <button type="button" class="btn" onclick="clearNameInput()">Clear</button>
+            <button type="button" class="btn green" style="flex:1" onclick="saveNameAndStep(1)">Next &gt;</button>
+          </div>
+          <div class="card-title"><span>Scribble Color</span></div>
+          <div id="swatchGrid" class="swatch-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-matrix" class="view" role="tabpanel" aria-labelledby="tbtn-matrix" hidden>
+      <div class="card" style="padding:6px 8px">
+        <div class="mx-mode-grid">
+          <button id="mxModeDca" type="button" class="btn sm primary" onclick="setMatrixMode('dca')">DCA 1–8</button>
+          <button id="mxModeMute" type="button" class="btn sm" onclick="setMatrixMode('mute')">Mute 1–6</button>
+          <button id="mxModeLink" type="button" class="btn sm" onclick="setMatrixMode('link')">Stereo Links</button>
+        </div>
+        <div id="mxBankTabs" class="mx-bank-grid"></div>
+      </div>
+      <div id="matrixContainer" class="matrix-scroll" role="region" tabindex="0" aria-label="DCA and Mute Group Assignment Matrix"></div>
+    </section>
+
+    <section id="tab-faders" class="view" role="tabpanel" aria-labelledby="tbtn-faders" hidden>
+      <div class="card" style="padding:6px 8px">
+        <div id="faderBankTabs" class="hscroll"></div>
+        <div class="row" style="flex-wrap:nowrap">
+          <label for="busTargetSelect" style="font-size:11px;color:var(--muted);white-space:nowrap">Mix:</label>
+          <select id="busTargetSelect" class="input-lg" style="flex:1" onchange="sendCmd({cmd:'setActiveBus',bus:Number(this.value)})"></select>
+        </div>
+      </div>
+      <div id="fadersWrap" class="faders-wrap"></div>
+    </section>
+
+    <section id="tab-presets" class="view" role="tabpanel" aria-labelledby="tbtn-presets" hidden>
+      <div class="card">
+        <div class="pr-mode-row">
+          <button id="prModeScenes" type="button" class="btn sm primary" onclick="setLibMode('scenes')">Scenes 00–31</button>
+          <button id="prModePresets" type="button" class="btn sm" onclick="setLibMode('presets')">Ch Presets 01–32</button>
+          <div class="spacer"></div>
+          <span id="prCurSceneBadge" class="badge mono">Scene --</span>
+        </div>
+        <div id="prBankRow" class="pr-bank-row"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span id="prSelTitle" style="color:var(--text);text-transform:none;font-size:14px;font-weight:800">Select a slot</span>
+          <span id="prSelMeta" class="mono"></span>
+        </div>
+        <div id="prSelSub" class="muted" style="font-size:12px"></div>
+        <div id="prTargetRow" class="row" hidden>
+          <span class="muted" style="font-size:12px;font-weight:700">Target</span>
+          <button type="button" class="btn sm" onclick="stepLibTarget(-1)" aria-label="Previous target strip">&lt;</button>
+          <select id="prTargetSel" class="input-lg mono" style="flex:1;min-width:140px;width:auto" aria-label="Target strip" onchange="onLibTargetChange()"></select>
+          <button type="button" class="btn sm" onclick="stepLibTarget(1)" aria-label="Next target strip">&gt;</button>
+        </div>
+        <div id="prScopeRow" class="scope-row" hidden></div>
+        <div class="row">
+          <button id="prLoadBtn" type="button" class="btn amber" style="flex:1" onclick="openLoadConfirm()">Load...</button>
+          <button id="prSaveBtn" type="button" class="btn primary" style="flex:1" onclick="openSaveSlotDialog()">Save Current...</button>
+        </div>
+      </div>
+
+      <div id="presetGrid" class="pr-grid"></div>
+    </section>
+  </main>
+</div>
+
+<dialog id="authDialog" class="modal-dlg" closedby="none" aria-labelledby="authTitle">
+  <form id="authForm" class="auth-form" action="/api/auth" method="POST" novalidate>
+    <h2 id="authTitle" style="font-size:18px;font-weight:800">Pair Browser with X32</h2>
+    <p id="authHelp" class="muted" style="font-size:12px">Enter the 6-digit pairing PIN shown on the device <strong>Wi-Fi/X32</strong> screen. PINs auto-rotate on use and every 15 min; paired browsers stay signed in.</p>
+    <div>
+      <label for="passkeyInput" style="display:block;font-size:12px;font-weight:700;margin-bottom:6px">6-Digit Pairing PIN</label>
+      <input id="passkeyInput" name="key" class="input-lg mono auth-input" type="text" inputmode="numeric"
+        autocomplete="one-time-code" autocorrect="off" autocapitalize="none" spellcheck="false"
+        enterkeyhint="done" pattern="[0-9]{6}" maxlength="6" required autofocus aria-describedby="authHelp authErr">
+    </div>
+    <p id="authErr" class="auth-err" role="alert" aria-live="polite"></p>
+    <button id="authSubmitBtn" type="submit" class="btn primary">Pair &amp; Unlock</button>
+  </form>
+</dialog>
+
+<dialog id="confirmLoadDialog" class="modal-dlg" closedby="any" aria-labelledby="confirmLoadTitle">
+  <div class="auth-form">
+    <h2 id="confirmLoadTitle" style="font-size:17px;font-weight:800">Confirm Load</h2>
+    <p id="confirmLoadDesc" class="muted" style="font-size:13px"></p>
+    <div class="row" style="justify-content:flex-end">
+      <button id="confirmLoadCancel" type="button" class="btn" autofocus onclick="closeConfirmLoad(false)">Cancel</button>
+      <button id="confirmLoadOk" type="button" class="btn amber" onclick="closeConfirmLoad(true)">Load</button>
+    </div>
+  </div>
+</dialog>
+
+<dialog id="saveSlotDialog" class="modal-dlg" closedby="any" aria-labelledby="saveSlotTitle">
+  <form id="saveSlotForm" class="auth-form" novalidate>
+    <h2 id="saveSlotTitle" style="font-size:17px;font-weight:800">Save to Slot</h2>
+    <p id="saveSlotHelp" class="muted" style="font-size:12px"></p>
+    <div>
+      <label for="saveSlotName" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Name</label>
+      <input id="saveSlotName" class="input-lg" type="text" maxlength="23" required autocorrect="off" autocapitalize="none" spellcheck="false" aria-describedby="saveSlotErr">
+    </div>
+    <div id="saveSlotNotesWrap">
+      <label for="saveSlotNotes" style="display:block;font-size:12px;font-weight:700;margin-bottom:5px">Notes (optional)</label>
+      <input id="saveSlotNotes" class="input-lg" type="text" maxlength="35" autocorrect="off" autocapitalize="none" spellcheck="false">
+    </div>
+    <p id="saveSlotErr" class="auth-err" role="alert" aria-live="polite"></p>
+    <div class="row" style="justify-content:flex-end">
+      <button type="button" class="btn" onclick="closeSaveDialog()">Cancel</button>
+      <button id="saveSlotSubmit" type="submit" class="btn green">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="iconDialog" class="modal-dlg" closedby="any" aria-labelledby="iconDlgTitle">
+  <div class="auth-form">
+    <div class="row" style="justify-content:space-between">
+      <h2 id="iconDlgTitle" style="font-size:17px;font-weight:800">Select Strip Icon</h2>
+      <button type="button" class="btn sm" autofocus onclick="closeIconDialog()">Done</button>
+    </div>
+    <div id="iconGridWrap" class="icon-grid"></div>
+  </div>
+</dialog>
+
+<script>
+const X32_COLORS = [
+  {id:0,code:'OFF',bg:'#2A2F3A',fg:'#A8B3C4',ac:'#4E5869',inv:false},
+  {id:1,code:'RD', bg:'#D9383A',fg:'#FFFFFF',ac:'#FF6B6E',inv:false},
+  {id:2,code:'GN', bg:'#2EA043',fg:'#FFFFFF',ac:'#56D364',inv:false},
+  {id:3,code:'YE', bg:'#D4A72C',fg:'#11151C',ac:'#F2CC60',inv:false},
+  {id:4,code:'BL', bg:'#2F81F7',fg:'#FFFFFF',ac:'#79C0FF',inv:false},
+  {id:5,code:'MG', bg:'#BF4B8A',fg:'#FFFFFF',ac:'#F778BA',inv:false},
+  {id:6,code:'CY', bg:'#26A69A',fg:'#101820',ac:'#56D4C8',inv:false},
+  {id:7,code:'WH', bg:'#E6EDF3',fg:'#11151C',ac:'#FFFFFF',inv:false},
+  {id:8,code:'OFFi',bg:'#141820',fg:'#9AA4B2',ac:'#2A2F3A',inv:true},
+  {id:9,code:'RDi', bg:'#141820',fg:'#FF6B6E',ac:'#D9383A',inv:true},
+  {id:10,code:'GNi',bg:'#141820',fg:'#56D364',ac:'#2EA043',inv:true},
+  {id:11,code:'YEi',bg:'#141820',fg:'#F2CC60',ac:'#D4A72C',inv:true},
+  {id:12,code:'BLi',bg:'#141820',fg:'#79C0FF',ac:'#2F81F7',inv:true},
+  {id:13,code:'MGi',bg:'#141820',fg:'#F778BA',ac:'#BF4B8A',inv:true},
+  {id:14,code:'CYi',bg:'#141820',fg:'#56D4C8',ac:'#26A69A',inv:true},
+  {id:15,code:'WHi',bg:'#141820',fg:'#E6EDF3',ac:'#E6EDF3',inv:true}
+];
+const ICON_GROUPS = [
+  ['Drums & Perc',1,'None,Kick Back,Kick Front,Snare Top,Snare Bottom,High Tom,Mid Tom,Floor Tom,Hi-Hat,Ride,Drum Kit,Cowbell,Bongos,Congas,Tambourine,Vibraphone'],
+  ['Bass & Guitars',17,'Electric Bass,Acoustic Bass,Contrabass,Les Paul Gtr,Ibanez Gtr,Washburn Gtr,Acoustic Gtr,Bass Amp,Guitar Amp,Amp Cabinet'],
+  ['Keys & Strings',27,'Piano,Organ,Harpsichord,Keyboard,Synth 1,Synth 2,Synth 3,Keytar,Trumpet,Trombone,Saxophone,Clarinet,Violin,Cello'],
+  ['Vocals & Mics',41,'Male Vocal,Female Vocal,Choir,Rock Hand,Talk A,Talk B,Condenser,Pencil L,Pencil R,Handheld Mic,Wireless,Podium Mic,Headset Mic'],
+  ['I/O & Routing',54,'XLR Jack,TRS Plug,TRS Left,TRS Right,RCA Left,RCA Right,Tape/Tracks,FX,Laptop,Wedge Mon,PA Left,PA Right,Line Array,Pole Speaker,Amp Rack,Control,DCA Fader,Mix Bus,Matrix,Routing,Smiley']
+];
+const ICON_BY_ID = {};
+for(const [,start,csv] of ICON_GROUPS) csv.split(',').forEach((nm,k)=>{ ICON_BY_ID[start+k]=nm; });
+
+let S = null;
+let activeTab = 'overview';
+let ovFilter = 'ch1';
+let scCategory = 'ch1';
+let mxMode = 'dca';
+let mxBank = 0;
+let faderBank = 'ch1';
+let draggingKey = null;
+let ws = null;
+let wsRetryTimer = null;
+let iconBits = null;
+let iconPromise = null;
+let iconGridOpen = false;
+let iconGridBuilt = false;
+let iconGridPainted = false;
+let nameSendTimer = null;
+let nameDirtyInEditor = false;
+let lastEditorSelKey = '';
+let lastSyncedSelKey = '';
+let ovGridBuilt = false;
+let fadersBuiltKey = '';
+
+let sessionToken = localStorage.getItem('x32_session') || '';
+localStorage.removeItem('x32_passkey');
+let authOk = false;
+let passkeyTouched = false;
+let libMode = 'scenes';
+let libBank = 0;
+let libSelSlot = 0;
+let libScope = 0x3E;
+let libTarget = {kind:'ch', idx:0};
+let saveNameTouched = false;
+let lpTimer = null;
+let lpFired = false;
+let lpStartX = 0;
+let lpStartY = 0;
+
+function esc(s){
+  return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function faderToDb(f){
+  if(f<=0.0001) return -90;
+  if(f>=0.5) return f*40-30;
+  if(f>=0.25) return f*80-50;
+  if(f>=0.0625) return f*160-70;
+  return f*480-90;
+}
+function formatDb(f){
+  if(f<=0.0001) return '-oo dB';
+  const db = faderToDb(f);
+  if(db<=-89.9) return '-oo dB';
+  return (Math.abs(db)<0.05?'0.0':(db>0?'+':'')+db.toFixed(1))+' dB';
+}
+function dbToFader(db){
+  if(db<=-89.9) return 0;
+  if(db>10) db=10;
+  if(db>=-10) return Math.min(1,Math.max(0,(db+30)/40));
+  if(db>=-30) return Math.min(1,Math.max(0,(db+50)/80));
+  if(db>=-60) return Math.min(1,Math.max(0,(db+70)/160));
+  return Math.min(1,Math.max(0,(db+90)/480));
+}
+function stepFaderDb(curF,dir){
+  if(curF<=0.0001) return dir>0?dbToFader(-85):0;
+  const db=faderToDb(curF);
+  if(db<=-89.9) return dir>0?dbToFader(-85):0;
+  const step=(dir>0?(db>=-15):(db>-15))?0.5
+    :(dir>0?(db>=-30):(db>-30))?1.0
+    :(dir>0?(db>=-60):(db>-60))?2.0:5.0;
+  const target=dir>0
+    ?(Math.floor(db/step+0.05)+1)*step
+    :(Math.ceil(db/step-0.05)-1)*step;
+  if(target<-85) return 0;
+  return dbToFader(Math.min(10,target));
+}
+function isStripGrpMuted(st){
+  if(!S||!st||st.m) return false;
+  for(let d=0;d<8;d++) if(((st.dm>>d)&1)&&S.dca[d]&&S.dca[d].m) return true;
+  for(let g=0;g<6;g++) if(((st.mm>>g)&1)&&S.mg[g]) return true;
+  return false;
+}
+function stripTag(kind,idx){
+  if(kind==='ch') return 'CH '+String(idx+1).padStart(2,'0');
+  if(kind==='aux') return 'AUX '+String(idx+1).padStart(2,'0');
+  if(kind==='bus') return 'BUS '+String(idx+1).padStart(2,'0');
+  if(kind==='dca') return 'DCA '+(idx+1);
+  return 'MAIN LR';
+}
+function getStrip(kind,idx){
+  if(!S) return null;
+  if(kind==='ch') return S.ch[idx];
+  if(kind==='aux') return S.aux[idx];
+  if(kind==='bus') return S.bus[idx];
+  if(kind==='dca') return S.dca[idx];
+  return S.main;
+}
+function kindCount(kind){
+  return kind==='ch'?32:kind==='aux'?8:kind==='bus'?16:kind==='dca'?8:1;
+}
+function scribbleStyle(cid){
+  const c = X32_COLORS[(cid||0)&15];
+  return c.inv ? `background:${c.bg};color:${c.fg};border-top:3px solid ${c.ac};` : `background:${c.bg};color:${c.fg};`;
+}
+function syncSlider(el,valText){
+  if(!el) return;
+  const min=parseFloat(el.min||'0'), max=parseFloat(el.max||'1'), val=parseFloat(el.value||'0');
+  const pct=max>min?Math.max(0,Math.min(100,((val-min)/(max-min))*100)):0;
+  el.style.setProperty('--attr-min', String(min));
+  el.style.setProperty('--attr-max', String(max));
+  el.style.setProperty('--control-value', String(val));
+  el.style.setProperty('--slider-pct', pct.toFixed(2)+'%');
+  el.setAttribute('aria-valuetext', valText||formatDb(val));
+}
+
+function authHeaders(){
+  return sessionToken ? {'X-Session-Token': sessionToken} : {};
+}
+function clearStoredSession(){
+  sessionToken = '';
+  localStorage.removeItem('x32_session');
+}
+function showAuthDialog(msg){
+  authOk = false;
+  clearTimeout(wsRetryTimer);
+  if(ws && ws.readyState < 2){ try{ ws.close(); }catch(e){} }
+  const dlg = document.getElementById('authDialog');
+  const err = document.getElementById('authErr');
+  const inp = document.getElementById('passkeyInput');
+  if(err) err.textContent = msg || '';
+  if(inp) inp.value = '';
+  if(!dlg.open) dlg.showModal();
+  setTimeout(()=>{ if(inp) inp.focus(); }, 20);
+}
+function lockSession(){
+  clearStoredSession();
+  authOk = false;
+  passkeyTouched = false;
+  fetch('/api/logout',{method:'POST'}).catch(()=>{});
+  document.getElementById('passkeyInput').value = '';
+  document.getElementById('passkeyInput').removeAttribute('aria-invalid');
+  showAuthDialog('');
+}
+function validateKeyField(showErr){
+  const inp = document.getElementById('passkeyInput');
+  const err = document.getElementById('authErr');
+  const ok = /^\d{6}$/.test(inp.value);
+  if(showErr){
+    inp.setAttribute('aria-invalid', ok ? 'false' : 'true');
+    err.textContent = ok ? '' : 'Enter the 6-digit pairing PIN shown on device.';
+  }
+  return ok;
+}
+async function unlockWithKey(pin, quietFail){
+  const btn = document.getElementById('authSubmitBtn');
+  const err = document.getElementById('authErr');
+  btn.disabled = true;
+  try{
+    const res = await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pin})});
+    const j = await res.json().catch(()=>({}));
+    if(res.ok && j.ok){
+      sessionToken = j.token || '';
+      if(sessionToken) localStorage.setItem('x32_session', sessionToken);
+      authOk = true;
+      if(err) err.textContent = '';
+      document.getElementById('passkeyInput').value = '';
+      document.getElementById('passkeyInput').setAttribute('aria-invalid','false');
+      const dlg = document.getElementById('authDialog');
+      if(dlg.open) dlg.close();
+      fetchState(false).then(ok=>{ if(ok) connectWs(); });
+      return true;
+    }
+    if(res.status === 401){
+      clearStoredSession();
+    }
+    showAuthDialog(quietFail ? 'Pairing PIN expired or already used. Enter current 6-digit PIN.' : (j.error || 'Invalid or expired 6-digit PIN'));
+    return false;
+  } catch(e){
+    showAuthDialog('Cannot reach device over Wi-Fi.');
+    return false;
+  } finally{
+    btn.disabled = false;
+  }
+}
+
+function sendCmd(obj){
+  if(!authOk) return;
+  const payload = JSON.stringify(obj);
+  if(ws && ws.readyState === 1){
+    ws.send(payload);
+  } else {
+    fetch('/api/cmd',{method:'POST',headers:{'Content-Type':'application/json',...authHeaders()},body:payload})
+      .then(r=>{
+        if(r.status === 401){
+          clearStoredSession();
+          showAuthDialog('Session revoked or locked. Pair with current 6-digit PIN.');
+          return;
+        }
+        return fetchState(false);
+      }).catch(()=>{});
+  }
+}
+
+function applyIncomingState(d){
+  if(!d) return;
+  S=d;
+  const selKey=(S.selKind||'ch')+':'+(S.selIdx||0);
+  const selChanged=(selKey!==lastSyncedSelKey);
+  lastSyncedSelKey=selKey;
+  if(S.selKind && S.selKind!=='dca') libTarget = {kind:S.selKind, idx:S.selIdx||0};
+  if(selChanged){
+    if(S.selKind==='ch'){
+      scCategory = S.selIdx<16?'ch1':'ch2';
+      if(ovFilter==='ch1' && S.selIdx>=16) setOvFilter('ch2',true);
+      else if(ovFilter==='ch2' && S.selIdx<16) setOvFilter('ch1',true);
+    } else if(S.selKind){
+      scCategory = S.selKind;
+    }
+  }
+  renderAll();
+  if(selChanged && activeTab==='overview' && S.selKind==='ch' && !draggingKey){
+    const tile=document.getElementById('ovTile'+S.selIdx);
+    if(tile) tile.scrollIntoView({block:'nearest',inline:'nearest'});
+  }
+}
+
+function fetchState(silent401){
+  return fetch('/api/state',{headers:authHeaders()}).then(r=>{
+    if(r.status === 401){
+      const hadTok = !!sessionToken;
+      clearStoredSession();
+      showAuthDialog(hadTok && !silent401 ? 'Session revoked on device. Enter current 6-digit PIN.' : '');
+      return null;
+    }
+    if(!r.ok) return null;
+    authOk = true;
+    const hdrTok = r.headers.get('X-Session-Token');
+    if(hdrTok && hdrTok !== sessionToken){
+      sessionToken = hdrTok;
+      localStorage.setItem('x32_session', hdrTok);
+    }
+    const dlg = document.getElementById('authDialog');
+    if(dlg.open) dlg.close();
+    return r.json();
+  }).then(d=>{
+    if(!d) return false;
+    applyIncomingState(d);
+    return true;
+  }).catch(()=>false);
+}
+
+function connectWs(){
+  if(!authOk) return;
+  if(!sessionToken){ fetchState(false).then(ok=>{ if(ok && sessionToken) connectWs(); }); return; }
+  clearTimeout(wsRetryTimer);
+  if(ws && ws.readyState < 2){ try{ ws.close(); }catch(e){} }
+  const proto = location.protocol==='https:' ? 'wss://' : 'ws://';
+  const wsPath = '/ws/' + sessionToken;
+  const sock = new WebSocket(proto + location.host + wsPath);
+  ws = sock;
+  sock.onopen = ()=>{ fetchState(false); };
+  sock.onmessage = ev=>{
+    try{
+      const msg = JSON.parse(ev.data);
+      if(msg.type==='state'){
+        applyIncomingState(msg);
+      } else if(msg.type==='meters'){ updateMetersOnly(msg); }
+    }catch(e){}
+  };
+  sock.onclose = ()=>{
+    if(ws !== sock) return;
+    if(!authOk) return;
+    fetch('/api/state',{headers:authHeaders()}).then(r=>{
+      if(r.status === 401){
+        clearStoredSession();
+        showAuthDialog('Session revoked on device. Enter current 6-digit PIN.');
+      } else {
+        wsRetryTimer = setTimeout(connectWs, 1500);
+      }
+    }).catch(()=>{ wsRetryTimer = setTimeout(connectWs, 1500); });
+  };
+}
+
+function loadX32Icons(){
+  if(iconBits) return Promise.resolve(iconBits);
+  if(iconPromise) return iconPromise;
+  iconPromise = fetch('/api/icons.bin').then(r=>r.ok?r.arrayBuffer():null).then(buf=>{
+    if(buf && buf.byteLength >= 73*512){
+      iconBits = new Uint8Array(buf);
+      if(S && activeTab==='scribble') renderScribbleTab();
+      if(iconGridOpen) renderIconGrid(true);
+    }
+    return iconBits;
+  }).catch(()=>{ iconPromise=null; });
+  return iconPromise;
+}
+
+function drawX32Icon(cv,id,col){
+  if(!cv) return;
+  const ctx = cv.getContext('2d');
+  ctx.clearRect(0,0,64,64);
+  if(!id || id<=1){
+    ctx.save(); ctx.strokeStyle=col||'#9aa4b2'; ctx.globalAlpha=.45; ctx.lineWidth=3;
+    ctx.strokeRect(10,10,44,44);
+    ctx.beginPath(); ctx.moveTo(14,50); ctx.lineTo(50,14); ctx.stroke();
+    ctx.restore();
+    return;
+  }
+  if(!iconBits || id>74) return;
+  const off = (id-2)*512;
+  const m = /^#?([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(col||'#e6edf3');
+  const r=m?parseInt(m[1],16):230, g=m?parseInt(m[2],16):237, b=m?parseInt(m[3],16):243;
+  const img = ctx.createImageData(64,64), d=img.data;
+  for(let y=0;y<64;y++)for(let x=0;x<64;x++){
+    if(iconBits[off+((y*64+x)>>3)] & (0x80>>(x&7))){
+      const p=(y*64+x)<<2; d[p]=r; d[p+1]=g; d[p+2]=b; d[p+3]=255;
+    }
+  }
+  ctx.putImageData(img,0,0);
+}
+
+function renderIconGrid(redraw){
+  const wrap = document.getElementById('iconGridWrap');
+  if(!wrap) return;
+  if(!iconGridBuilt){
+    wrap.innerHTML = ICON_GROUPS.map(([grp,start,csv])=>
+      `<div class="icon-grp">${esc(grp)}</div>` + csv.split(',').map((nm,k)=>{
+        const id=start+k;
+        return `<button type="button" class="icon-tile" data-ic="${id}" title="#${id} ${esc(nm)}" onclick="selectIconId(${id})"><canvas width="64" height="64"></canvas><span>${id}</span></button>`;
+      }).join('')
+    ).join('');
+    iconGridBuilt = true;
+    redraw = true;
+  }
+  if(redraw || (!iconGridPainted && iconBits)){
+    wrap.querySelectorAll('.icon-tile').forEach(el=>drawX32Icon(el.firstElementChild,Number(el.dataset.ic),'#e6edf3'));
+    if(iconBits) iconGridPainted = true;
+  }
+  const sel = S ? getStrip(S.selKind,S.selIdx) : null;
+  const curId = sel ? (sel.ic||1) : 1;
+  wrap.querySelectorAll('.icon-tile').forEach(el=>el.classList.toggle('sel',Number(el.dataset.ic)===curId));
+}
+
+function closeIconDialog(){
+  const dlg = document.getElementById('iconDialog');
+  if(dlg && dlg.open) dlg.close();
+  iconGridOpen = false;
+  const btn = document.getElementById('iconGridBtn');
+  if(btn) btn.classList.remove('primary');
+}
+
+function toggleIconGrid(){
+  const dlg = document.getElementById('iconDialog');
+  if(!dlg) return;
+  if(dlg.open){ closeIconDialog(); return; }
+  iconGridOpen = true;
+  document.getElementById('iconGridBtn').classList.add('primary');
+  loadX32Icons();
+  renderIconGrid(false);
+  dlg.showModal();
+}
+
+function selectIconId(id){
+  if(!S) return;
+  const st = getStrip(S.selKind,S.selIdx);
+  if(st) st.ic = id;
+  sendCmd({cmd:'setIcon',kind:S.selKind,idx:S.selIdx,icon:id});
+  renderScribbleTab();
+  closeIconDialog();
+}
+
+function switchTab(tab, focusTab){
+  activeTab = tab;
+  document.querySelectorAll('#tabBar .tabbtn').forEach(b=>{
+    const on = b.dataset.tab===tab;
+    b.setAttribute('aria-selected', on?'true':'false');
+    b.tabIndex = on ? 0 : -1;
+    if(on){
+      b.scrollIntoView({block:'nearest',inline:'nearest',container:'nearest'});
+      if(focusTab) b.focus();
+    }
+  });
+  document.querySelectorAll('.view').forEach(v=>{ v.hidden = (v.id !== 'tab-'+tab); });
+  renderAll();
+}
+
+function setOvFilter(f, noRender){
+  ovFilter = f;
+  document.getElementById('ovLayout').className = 'ov-layout ov-filter-'+f;
+  document.querySelectorAll('#ovSubTabs button').forEach(b=>b.className='btn sm '+(b.dataset.ovf===f?'primary':''));
+  if(!noRender && S && activeTab==='overview') renderOverview();
+}
+
+function setScCategory(cat){
+  scCategory = cat;
+  if(!S) return;
+  if(cat==='ch1' && (S.selKind!=='ch'||S.selIdx>15)) selectStrip('ch',0,true);
+  else if(cat==='ch2' && (S.selKind!=='ch'||S.selIdx<16)) selectStrip('ch',16,true);
+  else if(cat==='dca' && S.selKind!=='dca') selectStrip('dca',0,false);
+  else if(cat==='bus' && S.selKind!=='bus') selectStrip('bus',0,true);
+  else if(cat==='aux' && S.selKind!=='aux') selectStrip('aux',0,true);
+  else if(cat==='main' && S.selKind!=='main') selectStrip('main',0,true);
+  renderScribbleTab();
+}
+
+function selectStrip(kind,idx,toX32=true){
+  if(!S) return;
+  S.selKind = kind; S.selIdx = idx; nameDirtyInEditor = false;
+  lastSyncedSelKey = kind + ':' + idx;
+  if(kind !== 'dca') libTarget = {kind, idx};
+  sendCmd({cmd:'selectStrip',kind,idx,toX32:toX32?1:0});
+  renderAll();
+}
+
+function toggleQuickMute(){
+  if(!S) return;
+  S.quickMute = S.quickMute ? 0 : 1;
+  sendCmd({cmd:'setQuickMute',val:S.quickMute});
+  renderOverview();
+}
+
+let cfgCat = 'ch1';
+let cfgLastKind = 'ch';
+let cfgLastIdx = 0;
+let cfgSrcTab = 0;
+let cfgLastSelKey = '';
+let cfgForceTrim = false;
+let cfgPhArm = {ha:-1, exp:0};
+let cfgPhTimer = null;
+
+function fmtSrc(sr, full){
+  if(!sr||sr>64) return full?'Off (Unpatched)':'OFF';
+  if(sr<=32) return (full?'In ':'In')+String(sr).padStart(2,'0');
+  if(sr<=38) return (full?'Aux ':'Aux')+(sr-32);
+  if(sr===39) return full?'USB L':'UsbL';
+  if(sr===40) return full?'USB R':'UsbR';
+  if(sr<=48){
+    const fx = ((sr-41)>>1)+1, lr = ((sr-41)&1)?'R':'L';
+    return (full?'Fx ':'Fx')+fx+lr;
+  }
+  return (full?'Bus ':'Bs')+String(sr-48).padStart(2,'0');
+}
+function defSrc(k,i){ return k==='ch'?(i+1):k==='aux'?(33+i):0; }
+function srcToHa(sr,rt){
+  if(sr>=1&&sr<=32){
+    const b=(sr-1)>>3, o=(sr-1)&7, r=(rt&&rt[b]!==undefined)?rt[b]:b;
+    if(r<=3) return r*8+o;
+    if(r<=9) return 32+(r-4)*8+o;
+    if(r<=15) return 80+(r-10)*8+o;
+    return -1;
+  }
+  if(sr>=33&&sr<=38&&rt){
+    const o=sr-33, a=rt[4]||0;
+    if(a>=1&&a<=3) return o<a*2?o:-1;
+    if(a>=4&&a<=6) return o<(a-3)*2?(32+o):-1;
+    if(a>=7&&a<=9) return o<(a-6)*2?(80+o):-1;
+  }
+  return -1;
+}
+function haPhOn(ha){
+  if(ha<0||ha>=128||!S||!S.haPh) return false;
+  return (((S.haPh[ha>>5]||0)>>>(ha&31))&1)!==0;
+}
+function haSplit(ha,fl){
+  if(ha<0||ha>=128) return true;
+  if(ha<32) return (fl&2)!==0;
+  if(ha<80) return (fl&4)!==0;
+  return (fl&8)!==0;
+}
+function fmtHa(ha){
+  if(ha<0||ha>=128) return '';
+  if(ha<32) return 'XLR '+String(ha+1).padStart(2,'0');
+  if(ha<80) return 'A:'+String(ha-31).padStart(2,'0');
+  return 'B:'+String(ha-79).padStart(2,'0');
+}
+function gainToDb(f){ return Math.round((-12+Math.max(0,Math.min(1,f))*72)*2)/2; }
+function dbToGain(db){ return Math.max(0,Math.min(1,(db+12)/72)); }
+function fmtGain(f){ const d=gainToDb(f); return (Math.abs(d)<.05?'0.0':(d>0?'+':'')+d.toFixed(1))+' dB'; }
+function trimToDb(f){ return Math.round((-18+Math.max(0,Math.min(1,f))*36)*4)/4; }
+function dbToTrim(db){ return Math.max(0,Math.min(1,(db+18)/36)); }
+function fmtTrim(f){ const d=trimToDb(f),q=Math.round(d*4); if(q===0)return '0.0 dB'; return (q>0?'+':'')+((Math.abs(q)%2)?d.toFixed(2):d.toFixed(1))+' dB'; }
+function hpfToHz(f){ return 20*Math.pow(20,Math.max(0,Math.min(1,f))); }
+function hzToHpf(hz){ return Math.max(0,Math.min(1,Math.log(Math.max(20,Math.min(400,hz))/20)/Math.log(20))); }
+function panToPct(f){ return Math.max(-100,Math.min(100,Math.round((Math.max(0,Math.min(1,f))-.5)*200))); }
+function pctToPan(p){ return Math.max(0,Math.min(1,(p+100)/200)); }
+function fmtPan(f){ const p=panToPct(f); return p===0?'C':(p<0?'L'+(-p):'R'+p); }
+function activeCfgTarget(){
+  if(S && (S.selKind==='ch'||S.selKind==='aux')){ cfgLastKind=S.selKind; cfgLastIdx=S.selIdx||0; }
+  return {k:cfgLastKind, i:cfgLastIdx};
+}
+
+function setCfgCategory(cat){
+  cfgCat = cat;
+  cfgPhArm = {ha:-1,exp:0};
+  const k = cat==='aux'?'aux':'ch', idx = cat==='ch2'?16:0;
+  cfgLastKind = k; cfgLastIdx = idx;
+  selectStrip(k, idx, true);
+}
+function stepCfgStrip(dir){
+  if(!S) return;
+  const {k,i} = activeCfgTarget();
+  const tot = 40, ord = (k==='aux'?32+i:i), nxt = (ord+dir+tot)%tot;
+  const nk = nxt<32?'ch':'aux', ni = nxt<32?nxt:nxt-32;
+  cfgLastKind=nk; cfgLastIdx=ni; cfgPhArm={ha:-1,exp:0};
+  cfgCat = nk==='aux'?'aux':(ni<16?'ch1':'ch2');
+  selectStrip(nk, ni, true);
+}
+function setCfgSource(sr){
+  if(!S) return;
+  const {k,i} = activeCfgTarget(), st = getStrip(k,i);
+  if(st) st.sr = sr;
+  cfgPhArm = {ha:-1,exp:0};
+  sendCmd({cmd:'setSource',kind:k,idx:i,val:sr});
+  renderAll();
+}
+function setCfgSourceDefault(){
+  const {k,i} = activeCfgTarget();
+  setCfgSource(defSrc(k,i));
+}
+function setCfgSrcTab(t){ cfgSrcTab = t&3; renderConfigTab(); }
+function onCfgGainInput(el){
+  if(!S) return;
+  const {k,i} = activeCfgTarget(), st = getStrip(k,i); if(!st) return;
+  const sr = st.sr!==undefined?st.sr:defSrc(k,i), ha = srcToHa(sr,S.inRt), sp = haSplit(ha,S.haFl||0), useHa = ha>=0&&!sp&&!cfgForceTrim;
+  const step = parseInt(el.value,10);
+  if(useHa){
+    const f = dbToGain(-12+step*0.5);
+    if(S.haG) S.haG[ha] = f;
+    const tx = fmtGain(f);
+    syncSlider(el,tx); document.getElementById('cfgGainVal').textContent = tx;
+    sendCmd({cmd:'setGain',idx:ha,val:f});
+  } else {
+    const f = dbToTrim(-18+step*0.25);
+    st.tr = f;
+    const tx = fmtTrim(f);
+    syncSlider(el,tx); document.getElementById('cfgGainVal').textContent = tx;
+    sendCmd({cmd:'setTrim',kind:k,idx:i,val:f});
+  }
+}
+function stepCfgGain(dir){
+  const el = document.getElementById('cfgGainSlider'); if(!el) return;
+  el.value = String(Math.max(0,Math.min(144,parseInt(el.value,10)+dir)));
+  onCfgGainInput(el);
+}
+function onCfgTrimModeClick(){
+  if(!S) return;
+  const {k,i} = activeCfgTarget(), st = getStrip(k,i); if(!st) return;
+  const sr = st.sr!==undefined?st.sr:defSrc(k,i), ha = srcToHa(sr,S.inRt), sp = haSplit(ha,S.haFl||0);
+  if(ha>=0&&!sp){ cfgForceTrim=!cfgForceTrim; cfgPhArm={ha:-1,exp:0}; renderConfigTab(); return; }
+  st.tr = 0.5;
+  sendCmd({cmd:'setTrim',kind:k,idx:i,val:0.5});
+  renderConfigTab();
+}
+function onCfgPhantomClick(){
+  if(!S) return;
+  const {k,i} = activeCfgTarget(), st = getStrip(k,i); if(!st) return;
+  const sr = st.sr!==undefined?st.sr:defSrc(k,i), ha = srcToHa(sr,S.inRt), sp = haSplit(ha,S.haFl||0);
+  if(ha<0||sp) return;
+  const now = Date.now();
+  if(cfgPhArm.ha!==ha || cfgPhArm.exp<now){
+    cfgPhArm = {ha, exp:now+3500};
+    clearTimeout(cfgPhTimer);
+    cfgPhTimer = setTimeout(()=>{ cfgPhArm={ha:-1,exp:0}; renderConfigTab(); }, 3550);
+    renderConfigTab();
+    return;
+  }
+  const nxt = !haPhOn(ha);
+  cfgPhArm = {ha:-1,exp:0};
+  if(S.haPh){
+    if(nxt) S.haPh[ha>>5] |= (1<<(ha&31)); else S.haPh[ha>>5] &= ~(1<<(ha&31));
+  }
+  sendCmd({cmd:'setPhantom',idx:ha,val:nxt?1:0});
+  renderAll();
+}
+function toggleCfgInvert(){
+  if(!S) return;
+  const {k,i} = activeCfgTarget(), st = getStrip(k,i); if(!st) return;
+  st.iv = st.iv?0:1;
+  sendCmd({cmd:'setInvert',kind:k,idx:i,val:st.iv});
+  renderAll();
+}
+function toggleCfgHpon(){
+  if(!S) return;
+  const {k,i} = activeCfgTarget(); if(k!=='ch') return;
+  const st = S.ch[i]; st.ho = st.ho?0:1;
+  sendCmd({cmd:'setHpon',kind:'ch',idx:i,val:st.ho});
+  renderConfigTab();
+}
+function onCfgHpfInput(el){
+  if(!S) return;
+  const {k,i} = activeCfgTarget(); if(k!=='ch') return;
+  const f = parseFloat(el.value);
+  S.ch[i].hf = f;
+  const tx = Math.round(hpfToHz(f))+' Hz';
+  syncSlider(el,tx); document.getElementById('cfgHpfVal').textContent = tx;
+  sendCmd({cmd:'setHpf',kind:'ch',idx:i,val:f});
+}
+function stepCfgHpf(dir){
+  const el = document.getElementById('cfgHpfSlider'); if(!el) return;
+  el.value = String(Math.max(0,Math.min(1,parseFloat(el.value)+dir*0.025)));
+  onCfgHpfInput(el);
+}
+function setCfgHpfPreset(hz){
+  if(!S) return;
+  const {k,i} = activeCfgTarget(); if(k!=='ch') return;
+  const f = hzToHpf(hz);
+  S.ch[i].ho = 1; S.ch[i].hf = f;
+  sendCmd({cmd:'setHpon',kind:'ch',idx:i,val:1});
+  sendCmd({cmd:'setHpf',kind:'ch',idx:i,val:f});
+  renderConfigTab();
+}
+function onCfgPanInput(el){
+  setCfgPanPct(parseInt(el.value,10), false);
+}
+function stepCfgPan(dir){
+  const el = document.getElementById('cfgPanSlider'); if(!el) return;
+  setCfgPanPct(parseInt(el.value,10)+dir, true);
+}
+function setCfgPanPct(pct, redraw){
+  if(!S) return;
+  const {k,i} = activeCfgTarget(), st = getStrip(k,i); if(!st) return;
+  const p = Math.max(-100,Math.min(100,pct|0)), f = pctToPan(p);
+  st.pn = f;
+  const tx = fmtPan(f);
+  const el = document.getElementById('cfgPanSlider');
+  if(el && redraw!==false) el.value = String(p);
+  if(el) syncSlider(el,tx);
+  document.getElementById('cfgPanVal').textContent = tx;
+  sendCmd({cmd:'setPan',kind:k,idx:i,val:f});
+}
+function toggleCfgMainSt(){
+  if(!S) return;
+  const {k,i} = activeCfgTarget(), st = getStrip(k,i); if(!st) return;
+  st.st = (st.st===0)?1:0;
+  sendCmd({cmd:'setMainSt',kind:k,idx:i,val:st.st});
+  renderConfigTab();
+}
+function toggleCfgLink(){
+  if(!S) return;
+  const {k,i} = activeCfgTarget(); if(k!=='ch') return;
+  const p = i>>1;
+  if(S.chLink) S.chLink[p] = S.chLink[p]?0:1;
+  sendCmd({cmd:'setChLink',idx:p,val:S.chLink?S.chLink[p]:1});
+  renderAll();
+}
+
+function jumpToRenameSelected(){
+  if(!S) return;
+  scCategory = S.selKind==='ch'?(S.selIdx<16?'ch1':'ch2'):S.selKind;
+  nameDirtyInEditor = false;
+  switchTab('scribble');
+  setTimeout(()=>{ document.getElementById('nameInput').focus(); }, 30);
+}
+function jumpToConfigSelected(){
+  if(!S) return;
+  if(S.selKind==='ch'||S.selKind==='aux'){ cfgLastKind=S.selKind; cfgLastIdx=S.selIdx||0; }
+  cfgCat = cfgLastKind==='aux'?'aux':(cfgLastIdx<16?'ch1':'ch2');
+  switchTab('config');
+}
+function openDcaTab(){ mxMode='dca'; switchTab('matrix'); }
+
+function onTileClick(idx){
+  if(lpFired){ lpFired=false; return; }
+  if(!S) return;
+  if(S.quickMute){
+    S.ch[idx].m = S.ch[idx].m ? 0 : 1;
+    sendCmd({cmd:'setMute',kind:'ch',idx,val:S.ch[idx].m});
+    renderOverview();
+  } else {
+    selectStrip('ch',idx,true);
+  }
+}
+function onDcaPillClick(idx){
+  if(lpFired){ lpFired=false; return; }
+  if(!S) return;
+  sendCmd({cmd:'setMute',kind:'dca',idx,val:S.dca[idx].m?0:1});
+}
+function startHold(kind,idx,toX32,e){
+  clearTimeout(lpTimer); lpFired=false;
+  lpStartX=e.clientX||0; lpStartY=e.clientY||0;
+  lpTimer = setTimeout(()=>{ lpFired=true; selectStrip(kind,idx,toX32); jumpToRenameSelected(); }, 450);
+}
+function moveHold(e){
+  if(!lpTimer) return;
+  if(Math.hypot((e.clientX||0)-lpStartX,(e.clientY||0)-lpStartY)>10) clearTimeout(lpTimer);
+}
+function cancelHold(){ clearTimeout(lpTimer); }
+
+function toggleSelMute(){
+  if(!S) return;
+  const st = getStrip(S.selKind,S.selIdx); if(!st) return;
+  st.m = st.m?0:1;
+  sendCmd({cmd:'setMute',kind:S.selKind,idx:S.selIdx,val:st.m});
+  renderAll();
+}
+function toggleSelSolo(){
+  if(!S) return;
+  const st = getStrip(S.selKind,S.selIdx); if(!st) return;
+  st.s = st.s?0:1;
+  sendCmd({cmd:'setSolo',kind:S.selKind,idx:S.selIdx,val:st.s});
+  renderAll();
+}
+function toggleMainMute(){
+  if(!S) return;
+  S.main.m = S.main.m?0:1;
+  sendCmd({cmd:'setMute',kind:'main',idx:0,val:S.main.m});
+  renderOverview();
+}
+function onSelFaderInput(el){
+  if(!S) return;
+  const fv = parseFloat(el.value);
+  const st = getStrip(S.selKind, S.selIdx); if(st) st.f = fv;
+  const dbStr = formatDb(fv);
+  syncSlider(el, dbStr);
+  document.getElementById('selCardDb').textContent = dbStr;
+  if(S.selKind==='ch'){
+    const dbEl = document.getElementById('ovDb'+S.selIdx);
+    if(dbEl) dbEl.textContent = dbStr.replace(' dB','');
+  } else if(S.selKind==='main'){
+    document.getElementById('mainDbLbl').textContent = dbStr;
+    const mf = document.getElementById('mainFaderMini');
+    if(mf){ mf.value = fv; syncSlider(mf, dbStr); }
+  }
+  sendCmd({cmd:'setFader',kind:S.selKind,idx:S.selIdx,val:fv});
+}
+function stepSelectedFader(dir){
+  if(!S) return;
+  const st = getStrip(S.selKind, S.selIdx); if(!st) return;
+  const next = stepFaderDb(st.f, dir);
+  st.f = next;
+  const sf = document.getElementById('selFaderSlider');
+  if(sf){ sf.value = next; syncSlider(sf, formatDb(next)); }
+  sendCmd({cmd:'setFader',kind:S.selKind,idx:S.selIdx,val:next});
+  renderOverview();
+}
+function stepMainFader(dir){
+  if(!S) return;
+  const next = stepFaderDb(S.main.f, dir);
+  S.main.f = next;
+  sendCmd({cmd:'setFader',kind:'main',idx:0,val:next});
+  renderOverview();
+}
+function onMiniMainFader(el){
+  if(!S) return;
+  const fv = parseFloat(el.value);
+  const dbStr = formatDb(fv);
+  syncSlider(el, dbStr);
+  S.main.f = fv;
+  document.getElementById('mainDbLbl').textContent = dbStr;
+  sendCmd({cmd:'setFader',kind:'main',idx:0,val:fv});
+}
+
+function saveNameOnly(){
+  if(!S) return;
+  clearTimeout(nameSendTimer);
+  const val = document.getElementById('nameInput').value.slice(0,12);
+  const st = getStrip(S.selKind,S.selIdx); if(st) st.n = val;
+  nameDirtyInEditor = false;
+  sendCmd({cmd:'setName',kind:S.selKind,idx:S.selIdx,name:val});
+  renderAll();
+}
+function saveNameAndStep(dir){
+  if(!S) return;
+  saveNameOnly();
+  const cnt = kindCount(S.selKind);
+  const next = (S.selIdx + dir + cnt) % cnt;
+  if(S.selKind==='ch') scCategory = next<16?'ch1':'ch2';
+  selectStrip(S.selKind,next,S.selKind!=='dca');
+  const ni = document.getElementById('nameInput');
+  ni.focus(); ni.select();
+}
+function clearNameInput(){
+  const ni = document.getElementById('nameInput');
+  ni.value = '';
+  document.getElementById('lcdName').textContent = '(unnamed)';
+  nameDirtyInEditor = true;
+  saveNameOnly();
+  ni.focus();
+}
+
+function setSelColor(cid){
+  if(!S) return;
+  const st = getStrip(S.selKind,S.selIdx); if(st) st.c = cid&15;
+  sendCmd({cmd:'setColor',kind:S.selKind,idx:S.selIdx,color:cid&15});
+  renderAll();
+}
+function setSelBaseColor(base){
+  if(!S) return;
+  const st = getStrip(S.selKind,S.selIdx);
+  setSelColor((base&7) | (st?(st.c&8):0));
+}
+function toggleColorInvert(){
+  if(!S) return;
+  const st = getStrip(S.selKind,S.selIdx);
+  setSelColor((st?(st.c&15):0)^8);
+}
+function setMatrixMode(m){ mxMode=m; renderMatrixTab(); }
+function setMatrixBank(b){ mxBank=b; renderMatrixTab(); }
+function setFaderBank(b){ faderBank=b; renderFadersTab(); }
+function toggleDcaBit(kind,idx,bit){
+  const st = getStrip(kind,idx); if(!st) return;
+  st.dm ^= (1<<bit);
+  sendCmd({cmd:'setDcaMask',kind,idx,mask:st.dm});
+  renderMatrixTab();
+}
+function toggleMuteMaskBit(kind,idx,bit){
+  const st = getStrip(kind,idx); if(!st) return;
+  st.mm ^= (1<<bit);
+  sendCmd({cmd:'setMuteMask',kind,idx,mask:st.mm});
+  renderMatrixTab();
+}
+
+function renderHeader(){
+  if(!S) return;
+  const badge = document.getElementById('connBadge');
+  badge.className = 'badge '+(S.net.x32Conn?'live':'warn');
+  document.getElementById('connText').textContent = S.net.x32Conn ? (S.net.x32Name||S.net.x32Ip) : (S.net.x32Connecting?'SYNC...':'NO X32');
+  document.getElementById('clearSoloBtn').classList.toggle('on',!!S.anySolo);
+  const ip = S.net.wifiConn ? S.net.staIp : (S.net.apActive ? 'AP '+S.net.apIp : 'Offline');
+  document.getElementById('netBadge').textContent = ip;
+}
+
+function initOverviewGrid(){
+  if(ovGridBuilt) return;
+  let html = '';
+  for(let i=0;i<32;i++){
+    const tag = String(i+1).padStart(2,'0');
+    html += `<div id="ovTile${i}" class="ch-tile" onclick="onTileClick(${i})" ondblclick="selectStrip('ch',${i},true);jumpToRenameSelected()" onpointerdown="startHold('ch',${i},true,event)" onpointermove="moveHold(event)" onpointerup="cancelHold()" onpointercancel="cancelHold()">
+      <div id="ovScr${i}" class="scribble">
+        <div class="scribble-top"><span>${tag}<span id="ovSrc${i}" class="ov-src"></span></span><span id="ovDb${i}">0.0</span></div>
+        <div id="ovNm${i}" class="scribble-name">Ch ${i+1}</div>
+      </div>
+      <div class="tile-body">
+        <div class="vu-track"><div id="ovVu${i}" class="vu-fill"></div></div>
+        <div class="tile-flags"><span id="ovM${i}" class="pill-m">M</span><span id="ovS${i}" class="pill-s">S</span></div>
+      </div>
+    </div>`;
+  }
+  document.getElementById('chGrid').innerHTML = html;
+  ovGridBuilt = true;
+}
+
+function renderOverview(){
+  if(!S || activeTab!=='overview') return;
+  if(!ovGridBuilt) initOverviewGrid();
+  document.getElementById('statusLine').textContent = S.net.msg || 'Ready';
+  const qmBtn = document.getElementById('modeMuteBtn');
+  qmBtn.className = 'btn sm ov-qm-btn '+(S.quickMute?'red':'');
+  qmBtn.setAttribute('aria-pressed', S.quickMute?'true':'false');
+  document.getElementById('followChk').checked = !!S.follow;
+
+  for(let i=0;i<32;i++){
+    const ch = S.ch[i], isSel = (S.selKind==='ch' && S.selIdx===i), gm = isStripGrpMuted(ch);
+    const tile = document.getElementById('ovTile'+i);
+    tile.classList.toggle('sel', isSel);
+    tile.classList.toggle('muted', !!(ch.m || gm));
+    if(tile.dataset.c !== String(ch.c)){
+      tile.dataset.c = String(ch.c);
+      document.getElementById('ovScr'+i).setAttribute('style', scribbleStyle(ch.c));
+    }
+    const sr = ch.sr !== undefined ? ch.sr : (i+1);
+    const srcEl = document.getElementById('ovSrc'+i);
+    srcEl.textContent = fmtSrc(sr, false);
+    srcEl.className = 'ov-src' + (sr===0 ? ' off' : (sr!==i+1 ? ' custom' : ''));
+    document.getElementById('ovDb'+i).textContent = formatDb(ch.f).replace(' dB','');
+    document.getElementById('ovNm'+i).textContent = ch.n || ('Ch '+(i+1));
+    document.getElementById('ovVu'+i).style.width = (ch.mt||0)+'%';
+    const mEl = document.getElementById('ovM'+i);
+    mEl.className = 'pill-m'+(ch.m?' on':(gm?' grp':''));
+    mEl.textContent = (!ch.m && gm) ? 'GM' : 'M';
+    document.getElementById('ovS'+i).className = 'pill-s'+(ch.s?' on':'');
+  }
+
+  const sel = getStrip(S.selKind,S.selIdx);
+  if(sel){
+    document.getElementById('selCardBanner').setAttribute('style', scribbleStyle(sel.c));
+    let tagTxt = stripTag(S.selKind,S.selIdx);
+    if(S.selKind==='ch' || S.selKind==='aux'){
+      const sr = sel.sr !== undefined ? sel.sr : defSrc(S.selKind, S.selIdx);
+      const ha = srcToHa(sr, S.inRt);
+      tagTxt += ' • ' + fmtSrc(sr, true);
+      if(ha >= 0 && haPhOn(ha)) tagTxt += ' +48V';
+      if(sel.iv) tagTxt += ' Ø';
+    }
+    document.getElementById('selCardTag').textContent = tagTxt;
+    const dbStr = formatDb(sel.f);
+    document.getElementById('selCardDb').textContent = dbStr;
+    document.getElementById('selCardName').textContent = sel.n || '(unnamed)';
+    document.getElementById('selMuteBtn').className = 'btn sm '+(sel.m?'red':'');
+    document.getElementById('selSoloBtn').className = 'btn sm '+(sel.s?'amber':'');
+    if(draggingKey !== 'sel'){
+      const sf = document.getElementById('selFaderSlider');
+      sf.value = sel.f;
+      syncSlider(sf, dbStr);
+    }
+  }
+
+  let dHtml = '';
+  for(let i=0;i<8;i++){
+    const d = S.dca[i], c = X32_COLORS[d.c&15], dotCol = c.inv?c.ac:c.bg;
+    dHtml += `<div class="dca-pill ${d.m?'muted':''}" onclick="onDcaPillClick(${i})" oncontextmenu="event.preventDefault();selectStrip('dca',${i},false);jumpToRenameSelected()" onpointerdown="startHold('dca',${i},false,event)" onpointermove="moveHold(event)" onpointerup="cancelHold()" onpointercancel="cancelHold()">
+      <span style="display:flex;align-items:center;gap:5px;min-width:0"><span style="width:8px;height:8px;border-radius:50%;background:${dotCol};flex:none"></span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(d.n||('DCA '+(i+1)))}</span></span>
+      <span style="font-size:10px;color:${d.m?'#ff7b72':'#8b949e'}">${d.m?'M':'ON'}</span>
+    </div>`;
+  }
+  document.getElementById('dcaMiniGrid').innerHTML = dHtml;
+
+  let mgHtml = '';
+  for(let i=0;i<6;i++){
+    const on = !!S.mg[i];
+    mgHtml += `<button type="button" class="mg-btn ${on?'on':''}" onclick="sendCmd({cmd:'setMuteGrp',idx:${i},val:${on?0:1}})">MG ${i+1}</button>`;
+  }
+  document.getElementById('mgMiniGrid').innerHTML = mgHtml;
+
+  const mainDbStr = formatDb(S.main.f);
+  document.getElementById('mainDbLbl').textContent = mainDbStr;
+  document.getElementById('mainVuFill').style.width = (S.main.mt||0)+'%';
+  if(draggingKey !== 'main:0'){
+    const mf = document.getElementById('mainFaderMini');
+    mf.value = S.main.f;
+    syncSlider(mf, mainDbStr);
+  }
+  document.getElementById('mainMuteMini').className = 'btn sm '+(S.main.m?'red':'');
+}
+
+function cfgPickStrip(k, i){
+  cfgLastKind = k; cfgLastIdx = i;
+  cfgCat = k==='aux' ? 'aux' : (i<16 ? 'ch1' : 'ch2');
+  cfgPhArm = {ha:-1, exp:0};
+  selectStrip(k, i, true);
+}
+
+function renderConfigTab(){
+  if(!S || activeTab!=='config') return;
+  document.getElementById('followChk3').checked = !!S.follow;
+  const {k, i} = activeCfgTarget();
+  const st = getStrip(k, i); if(!st) return;
+  cfgCat = k==='aux' ? 'aux' : (i<16 ? 'ch1' : 'ch2');
+  const sr = st.sr !== undefined ? st.sr : defSrc(k, i);
+  const ha = srcToHa(sr, S.inRt), sp = haSplit(ha, S.haFl||0);
+  const selKey = k + ':' + i;
+  if(selKey !== cfgLastSelKey){
+    cfgLastSelKey = selKey;
+    cfgPhArm = {ha:-1, exp:0};
+    cfgForceTrim = false;
+    const pSr = (sr>=1 && sr<=64) ? sr : defSrc(k, i);
+    cfgSrcTab = Math.max(0, Math.min(3, (pSr - 1) >> 4));
+  }
+
+  document.querySelectorAll('#cfgCatTabs button').forEach(b=>b.className='btn sm '+(b.dataset.cfgcat===cfgCat?'primary':''));
+
+  const pk = cfgCat==='aux'?'aux':'ch';
+  const start = cfgCat==='ch2'?16:0, cnt = cfgCat==='aux'?8:16;
+  let pHtml = '';
+  for(let p=start; p<start+cnt; p++){
+    const pst = getStrip(pk, p); if(!pst) continue;
+    const psr = pst.sr !== undefined ? pst.sr : defSrc(pk, p);
+    const active = (pk===k && p===i);
+    pHtml += `<button type="button" class="sp-btn ${active?'sel':''}" style="${scribbleStyle(pst.c)}" onclick="cfgPickStrip('${pk}',${p})"><div class="n">${pk==='aux'?'A'+(p+1):String(p+1).padStart(2,'0')}·${fmtSrc(psr,false)}</div><div class="t">${esc(pst.n||(pk==='aux'?('Aux '+(p+1)):('Ch '+(p+1))))}</div></button>`;
+  }
+  document.getElementById('cfgStripPicker').innerHTML = pHtml;
+
+  document.getElementById('cfgBanner').setAttribute('style', scribbleStyle(st.c));
+  document.getElementById('cfgTag').textContent = stripTag(k, i);
+  document.getElementById('cfgHdrSrc').textContent = fmtSrc(sr, true);
+  document.getElementById('cfgName').textContent = st.n || (k==='ch'?('Ch '+(i+1)):('Aux '+(i+1)));
+  document.getElementById('cfgSrcCur').textContent = fmtSrc(sr, true) + (ha>=0 ? ' ('+fmtHa(ha)+')' : '');
+
+  document.querySelectorAll('#cfgSrcTabs button').forEach(b=>b.className='btn sm '+(Number(b.dataset.srctab)===cfgSrcTab?'primary':''));
+
+  let usedByCur = [];
+  if(sr > 0){
+    for(let ci=0; ci<32; ci++) if(!(k==='ch'&&i===ci) && (S.ch[ci].sr!==undefined?S.ch[ci].sr:ci+1)===sr) usedByCur.push('Ch'+(ci+1));
+    for(let ai=0; ai<8; ai++) if(!(k==='aux'&&i===ai) && (S.aux[ai].sr!==undefined?S.aux[ai].sr:33+ai)===sr) usedByCur.push('Aux'+(ai+1));
+  }
+  let gHtml = '';
+  const baseSr = cfgSrcTab*16 + 1;
+  for(let s=baseSr; s<baseSr+16; s++){
+    let nUsed = 0;
+    for(let ci=0; ci<32; ci++) if(!(k==='ch'&&i===ci) && (S.ch[ci].sr!==undefined?S.ch[ci].sr:ci+1)===s) nUsed++;
+    for(let ai=0; ai<8; ai++) if(!(k==='aux'&&i===ai) && (S.aux[ai].sr!==undefined?S.aux[ai].sr:33+ai)===s) nUsed++;
+    const sha = srcToHa(s, S.inRt);
+    const sub = sha>=0 ? fmtHa(sha) + (nUsed ? ' ('+(nUsed+1)+'x)' : '') : (nUsed ? nUsed+' used' : '');
+    const active = (s === sr);
+    gHtml += `<button type="button" class="btn sm tog${nUsed?' shared':''}" aria-pressed="${active?'true':'false'}" onclick="setCfgSource(${s})"><span>${fmtSrc(s,true)}</span>${sub?`<span class="cfg-sub">${sub}</span>`:''}</button>`;
+  }
+  document.getElementById('cfgSrcGrid').innerHTML = gHtml;
+  document.getElementById('cfgSrcOffBtn').setAttribute('aria-pressed', sr===0?'true':'false');
+  document.getElementById('cfgSrcDefBtn').className = 'btn sm' + (sr===defSrc(k,i)?' primary':'');
+
+  const warnEl = document.getElementById('cfgWarn');
+  if(sr > 0 && usedByCur.length){
+    warnEl.textContent = 'Shared source with ' + usedByCur.slice(0,3).join(', ') + (usedByCur.length>3?'…':'') + ' — gain/+48V affect all.';
+    warnEl.style.color = '#f2cc60';
+  } else if(sr > 0 && ha >= 0 && sp){
+    warnEl.textContent = fmtHa(ha) + ' Gain Split active — controlling Digital Trim.';
+    warnEl.style.color = '#f2cc60';
+  } else if(sr > 0 && ha < 0){
+    warnEl.textContent = 'Non-headamp source — Digital Trim active.';
+    warnEl.style.color = 'var(--muted)';
+  } else {
+    warnEl.textContent = '';
+  }
+
+  const canHa = ha >= 0 && !sp;
+  const useHa = canHa && !cfgForceTrim;
+  const gEl = document.getElementById('cfgGainSlider');
+  if(useHa){
+    const gf = (S.haG && S.haG[ha]!==undefined) ? S.haG[ha] : (12/72);
+    const step = Math.max(0, Math.min(144, Math.round((gainToDb(gf)+12)*2)));
+    const tx = fmtGain(gf);
+    document.getElementById('cfgGainLbl').textContent = 'HA Gain (' + fmtHa(ha) + ')';
+    document.getElementById('cfgGainVal').textContent = tx;
+    gEl.setAttribute('aria-label', 'Headamp Gain');
+    gEl.value = String(step); syncSlider(gEl, tx);
+  } else {
+    const tf = st.tr !== undefined ? st.tr : 0.5;
+    const step = Math.max(0, Math.min(144, Math.round((trimToDb(tf)+18)*4)));
+    const tx = fmtTrim(tf);
+    document.getElementById('cfgGainLbl').textContent = 'Digital Trim' + (ha>=0&&sp?' (Split)':'');
+    document.getElementById('cfgGainVal').textContent = tx;
+    gEl.setAttribute('aria-label', 'Digital Trim');
+    gEl.value = String(step); syncSlider(gEl, tx);
+  }
+
+  const phBtn = document.getElementById('cfgPhBtn');
+  phBtn.disabled = !canHa;
+  if(!canHa){
+    phBtn.textContent = '+48V N/A'; phBtn.className = 'btn sm'; phBtn.setAttribute('aria-pressed','false');
+  } else if(cfgPhArm.ha===ha && cfgPhArm.exp>=Date.now()){
+    phBtn.textContent = haPhOn(ha) ? 'Confirm OFF' : 'Confirm +48V';
+    phBtn.className = 'btn sm tog-a'; phBtn.setAttribute('aria-pressed','true');
+  } else {
+    const on = haPhOn(ha);
+    phBtn.textContent = on ? '+48V ON' : '+48V OFF';
+    phBtn.className = 'btn sm tog-r'; phBtn.setAttribute('aria-pressed', on?'true':'false');
+  }
+
+  const polBtn = document.getElementById('cfgPolBtn');
+  polBtn.textContent = st.iv ? 'Pol INV' : 'Pol Norm';
+  polBtn.setAttribute('aria-pressed', st.iv?'true':'false');
+
+  const tmBtn = document.getElementById('cfgTrimModeBtn');
+  tmBtn.textContent = canHa ? (cfgForceTrim ? 'Show Gain' : 'Show Trim') : 'Reset Trim';
+  tmBtn.className = 'btn sm' + (canHa && cfgForceTrim ? ' primary' : '');
+
+  const isCh = (k === 'ch');
+  document.getElementById('cfgHpfWrap').hidden = !isCh;
+  document.getElementById('cfgHpfAuxNote').hidden = isCh;
+  if(isCh){
+    const ho = !!st.ho, hf = st.hf !== undefined ? st.hf : hzToHpf(80);
+    const hz = Math.round(hpfToHz(hf)), hTxt = hz + ' Hz';
+    const hBtn = document.getElementById('cfgHpfBtn');
+    hBtn.textContent = ho ? 'Low Cut ON' : 'Low Cut OFF';
+    hBtn.setAttribute('aria-pressed', ho?'true':'false');
+    document.getElementById('cfgHpfVal').textContent = hTxt;
+    const hEl = document.getElementById('cfgHpfSlider');
+    hEl.setAttribute('aria-label', 'Low Cut Frequency');
+    hEl.value = String(hf); syncSlider(hEl, hTxt);
+    document.querySelectorAll('#cfgHpfPresets button').forEach(b=>{
+      const hit = ho && Math.abs(hz - Number(b.dataset.hz)) <= 2;
+      b.className = 'btn sm' + (hit?' primary':'');
+    });
+  }
+
+  const pn = st.pn !== undefined ? st.pn : 0.5, pct = panToPct(pn), pTxt = fmtPan(pn);
+  document.getElementById('cfgPanVal').textContent = pTxt;
+  const pEl = document.getElementById('cfgPanSlider');
+  pEl.setAttribute('aria-label', 'Pan or Balance');
+  pEl.value = String(pct); syncSlider(pEl, pTxt);
+
+  const mst = st.st !== 0;
+  const stBtn = document.getElementById('cfgMainStBtn');
+  stBtn.textContent = mst ? 'Main LR: ON' : 'Main LR: OFF';
+  stBtn.setAttribute('aria-pressed', mst?'true':'false');
+
+  const lkBtn = document.getElementById('cfgLinkBtn');
+  if(isCh){
+    const p = i >> 1, lo = p*2 + 1, hi = lo + 1, lkd = !!(S.chLink && S.chLink[p]);
+    lkBtn.disabled = false;
+    lkBtn.textContent = 'Link Ch ' + lo + '-' + hi;
+    lkBtn.setAttribute('aria-pressed', lkd?'true':'false');
+  } else {
+    lkBtn.disabled = true;
+    lkBtn.textContent = 'Link Ch (n/a)';
+    lkBtn.setAttribute('aria-pressed','false');
+  }
+}
+
+function renderScribbleTab(){
+  if(!S || activeTab!=='scribble') return;
+  document.getElementById('followChk2').checked = !!S.follow;
+  if(S.selKind==='ch' && scCategory!=='ch1' && scCategory!=='ch2') scCategory = S.selIdx<16?'ch1':'ch2';
+  else if(S.selKind!=='ch') scCategory = S.selKind;
+  document.querySelectorAll('#catTabs button').forEach(b=>b.classList.toggle('primary',b.dataset.cat===scCategory));
+
+  let kind='ch', start=0, count=16;
+  if(scCategory==='ch1'){kind='ch';start=0;count=16;}
+  else if(scCategory==='ch2'){kind='ch';start=16;count=16;}
+  else if(scCategory==='dca'){kind='dca';start=0;count=8;}
+  else if(scCategory==='bus'){kind='bus';start=0;count=16;}
+  else if(scCategory==='aux'){kind='aux';start=0;count=8;}
+  else {kind='main';start=0;count=1;}
+
+  let pHtml = '';
+  for(let i=start;i<start+count;i++){
+    const st = getStrip(kind,i), isSel = (S.selKind===kind && S.selIdx===i);
+    const c = X32_COLORS[st.c&15], bar = c.inv?c.ac:c.bg;
+    pHtml += `<button type="button" class="sp-btn ${isSel?'sel':''}" style="border-top:3px solid ${bar}" onclick="selectStrip('${kind}',${i},${kind!=='dca'})">
+      <div class="n">${stripTag(kind,i)}</div><div class="t">${esc(st.n||'(empty)')}</div>
+    </button>`;
+  }
+  const picker = document.getElementById('stripPicker');
+  picker.innerHTML = pHtml;
+  const selBtn = picker.querySelector('.sp-btn.sel');
+  if(selBtn) selBtn.scrollIntoView({block:'nearest',inline:'nearest'});
+
+  const sel = getStrip(S.selKind,S.selIdx); if(!sel) return;
+  const key = S.selKind+':'+S.selIdx, ni = document.getElementById('nameInput');
+  if(lastEditorSelKey!==key || (!nameDirtyInEditor && document.activeElement!==ni)){
+    ni.value = sel.n || '';
+    lastEditorSelKey = key;
+    nameDirtyInEditor = false;
+  }
+
+  const c = X32_COLORS[sel.c&15];
+  document.getElementById('lcdPreview').setAttribute('style',scribbleStyle(sel.c));
+  document.getElementById('scTagBadge').textContent = stripTag(S.selKind,S.selIdx);
+  document.getElementById('lcdTopTag').textContent = stripTag(S.selKind,S.selIdx);
+  document.getElementById('lcdColorCode').textContent = c.code;
+  document.getElementById('lcdName').textContent = sel.n || '(unnamed)';
+  const icId = sel.ic || 1;
+  document.getElementById('lcdIconName').textContent = `#${icId} ${ICON_BY_ID[icId]||'Icon'}`;
+  loadX32Icons();
+  drawX32Icon(document.getElementById('lcdIconCanvas'),icId,c.fg);
+  document.getElementById('lcdState').textContent = sel.m ? 'MUTED' : formatDb(sel.f);
+  document.getElementById('iconSelect').value = String(icId);
+  if(iconGridOpen) renderIconGrid(false);
+
+  document.querySelectorAll('#swatchGrid .swatch[data-base]').forEach(b=>b.classList.toggle('sel',Number(b.dataset.base)===(sel.c&7)));
+  document.getElementById('invertColorBtn').classList.toggle('on',(sel.c&8)!==0);
+}
+
+function renderMatrixTab(){
+  if(!S || activeTab!=='matrix') return;
+  document.getElementById('mxModeDca').className = 'btn sm '+(mxMode==='dca'?'primary':'');
+  document.getElementById('mxModeMute').className = 'btn sm '+(mxMode==='mute'?'primary':'');
+  document.getElementById('mxModeLink').className = 'btn sm '+(mxMode==='link'?'primary':'');
+
+  const bankTabs = document.getElementById('mxBankTabs'), cont = document.getElementById('matrixContainer');
+  bankTabs.hidden = (mxMode === 'link');
+  if(mxMode==='link'){
+    bankTabs.innerHTML = '';
+    let html = '<div class="card-title" style="padding:8px 8px 0">Input Channel Stereo Links (1–32)</div><div class="link-grid">';
+    for(let p=0;p<16;p++){
+      const on=!!S.chLink[p], a=p*2, b=p*2+1;
+      html += `<button type="button" class="link-card ${on?'on':''}" onclick="sendCmd({cmd:'setChLink',idx:${p},val:${on?0:1}})">
+        <div><strong>Ch ${a+1}-${b+1}</strong><div class="muted" style="font-size:11px">${esc(S.ch[a].n)} / ${esc(S.ch[b].n)}</div></div>
+        <span class="badge ${on?'live':''}" style="min-height:24px">${on?'LINK':'MONO'}</span>
+      </button>`;
+    }
+    html += '</div><div class="card-title" style="padding:6px 8px 0">Mix Bus Stereo Links (1–16)</div><div class="link-grid">';
+    for(let p=0;p<8;p++){
+      const on=!!S.busLink[p], a=p*2, b=p*2+1;
+      html += `<button type="button" class="link-card ${on?'on':''}" onclick="sendCmd({cmd:'setBusLink',idx:${p},val:${on?0:1}})">
+        <div><strong>Bus ${a+1}-${b+1}</strong><div class="muted" style="font-size:11px">${esc(S.bus[a].n)} / ${esc(S.bus[b].n)}</div></div>
+        <span class="badge ${on?'live':''}" style="min-height:24px">${on?'LINK':'MONO'}</span>
+      </button>`;
+    }
+    cont.innerHTML = html + '</div>';
+    return;
+  }
+
+  const banks = ['1–8','9–16','17–24','25–32','Aux'];
+  bankTabs.innerHTML = banks.map((lbl,i)=>`<button type="button" class="btn sm ${mxBank===i?'primary':''}" onclick="setMatrixBank(${i})">${lbl}</button>`).join('');
+  const kind = mxBank===4?'aux':'ch', base = mxBank===4?0:mxBank*8;
+  let html = '<table class="matrix-table"><thead><tr><th scope="col">Strip</th>';
+  if(mxMode==='dca'){
+    for(let d=0;d<8;d++){
+      const dc=S.dca[d], c=X32_COLORS[dc.c&15], ac=c.inv?c.ac:c.bg;
+      html += `<th scope="col" style="border-top:3px solid ${ac}"><button type="button" onclick="selectStrip('dca',${d},false);jumpToRenameSelected()" title="Rename DCA ${d+1}">DCA ${d+1}<br><span style="color:#fff">${esc(dc.n||('DCA '+(d+1)))}</span></button></th>`;
+    }
+  } else {
+    for(let m=0;m<6;m++){
+      const on=!!S.mg[m];
+      html += `<th scope="col" style="${on?'background:#6e1d1d;border-color:#f85149':''}"><button type="button" onclick="sendCmd({cmd:'setMuteGrp',idx:${m},val:${on?0:1}})">MG ${m+1}<br><span style="font-size:10px">${on?'ON':'OFF'}</span></button></th>`;
+    }
+  }
+  html += '</tr></thead><tbody>';
+  for(let r=0;r<8;r++){
+    const idx=base+r, st=getStrip(kind,idx);
+    const c=X32_COLORS[st.c&15], ac=c.inv?c.ac:c.bg;
+    const shortTag=(kind==='aux'?'A':'')+String(idx+1).padStart(2,'0');
+    html += `<tr><th scope="row" class="matrix-ch" style="border-left:4px solid ${ac}"><div class="mx-row-lbl">${shortTag} ${esc(st.n||stripTag(kind,idx))}</div></th>`;
+    if(mxMode==='dca'){
+      for(let d=0;d<8;d++){
+        const on = ((st.dm>>d)&1)!==0;
+        html += `<td><button type="button" class="mcell ${on?'on':''}" onclick="toggleDcaBit('${kind}',${idx},${d})">${on?(d+1):'&middot;'}</button></td>`;
+      }
+    } else {
+      for(let m=0;m<6;m++){
+        const on = ((st.mm>>m)&1)!==0;
+        html += `<td><button type="button" class="mcell mg ${on?'on':''}" onclick="toggleMuteMaskBit('${kind}',${idx},${m})">${on?('M'+(m+1)):'&middot;'}</button></td>`;
+      }
+    }
+    html += '</tr>';
+  }
+  cont.innerHTML = html + '</tbody></table>';
+}
+
+function toggleStripSolo(kind,idx){
+  const st = getStrip(kind,idx); if(!st) return;
+  st.s = st.s?0:1;
+  sendCmd({cmd:'setSolo',kind,idx,val:st.s});
+  renderAll();
+}
+function toggleStripMute(kind,idx,isSend){
+  if(!S) return;
+  if(isSend){
+    const curOn = S.sendsOn ? !!S.sendsOn[idx] : true;
+    const nextOn = curOn ? 0 : 1;
+    if(S.sendsOn) S.sendsOn[idx] = nextOn;
+    sendCmd({cmd:'setSendOn',idx,bus:S.activeBus,val:nextOn});
+  } else {
+    const st = getStrip(kind,idx); if(!st) return;
+    st.m = st.m?0:1;
+    sendCmd({cmd:'setMute',kind,idx,val:st.m});
+  }
+  renderAll();
+}
+
+function fstripHtml(kind,idx,st,val,isMuted,key,isSend,extraCls){
+  const isSel = !isSend && S && S.selKind===kind && S.selIdx===idx;
+  return `<div class="fstrip ${extraCls||''} ${isSel?'sel':''}" data-key="${key}" data-c="${st.c}">
+    <button type="button" class="fstrip-cap" style="${scribbleStyle(st.c)}" onclick="if(lpFired){lpFired=false;return;}selectStrip('${kind}',${idx},${kind!=='dca'})" ondblclick="selectStrip('${kind}',${idx},${kind!=='dca'});jumpToRenameSelected()" onpointerdown="startHold('${kind}',${idx},${kind!=='dca'},event)" onpointermove="moveHold(event)" onpointerup="cancelHold()" onpointercancel="cancelHold()">
+      <span class="mono" style="font-size:10px;opacity:.85">${stripTag(kind,idx)}</span>
+      <span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(st.n||stripTag(kind,idx))}</span>
+    </button>
+    <div id="fdb_${key}" class="fstrip-db">${formatDb(val)}</div>
+    <div class="fstrip-mid">
+      <div class="v-meter"><div id="fvu_${key}" class="v-meter-fill" style="--meter-pct:${st.mt||0}%"></div></div>
+      <div class="v-slider-box">
+        <input class="rslider" type="range" min="0" max="1" step="0.004" value="${val}" aria-label="${esc(stripTag(kind,idx)+' '+(st.n||''))} Fader"
+          onpointerdown="draggingKey='${key}'" onpointerup="draggingKey=null"
+          oninput="onStripFaderInput('${kind}',${idx},${isSend?1:0},this,'${key}')">
+      </div>
+    </div>
+    <div class="fstrip-btns">
+      <button type="button" class="solo ${st.s?'on':''}" onclick="toggleStripSolo('${kind}',${idx})">S</button>
+      <button type="button" class="mute ${isMuted?'on':''}" onclick="toggleStripMute('${kind}',${idx},${isSend?1:0})">M</button>
+    </div>
+  </div>`;
+}
+
+function updateFstripRow(rowEl,kind,idx,st,val,isMuted,key,isSend){
+  if(!rowEl) return;
+  rowEl.classList.toggle('sel', !isSend && S.selKind===kind && S.selIdx===idx);
+  const cap = rowEl.querySelector('.fstrip-cap');
+  if(cap){
+    if(rowEl.dataset.c !== String(st.c)){
+      rowEl.dataset.c = String(st.c);
+      cap.setAttribute('style', scribbleStyle(st.c));
+    }
+    cap.lastElementChild.textContent = st.n || stripTag(kind,idx);
+  }
+  const dbStr = formatDb(val);
+  const dbEl = document.getElementById('fdb_'+key);
+  if(dbEl) dbEl.textContent = dbStr;
+  const vuEl = document.getElementById('fvu_'+key);
+  if(vuEl) vuEl.style.setProperty('--meter-pct', (st.mt||0)+'%');
+  const sl = rowEl.querySelector('.rslider');
+  if(sl && draggingKey !== key){ sl.value = val; syncSlider(sl, dbStr); }
+  const soloBtn = rowEl.querySelector('.solo'); if(soloBtn) soloBtn.classList.toggle('on', !!st.s);
+  const muteBtn = rowEl.querySelector('.mute'); if(muteBtn) muteBtn.classList.toggle('on', !!isMuted);
+}
+
+function renderFadersTab(){
+  if(!S || activeTab!=='faders') return;
+  document.querySelectorAll('#faderBankTabs button').forEach(b=>b.classList.toggle('primary',b.dataset.fbank===faderBank));
+  const busSel = document.getElementById('busTargetSelect');
+  let opts = '<option value="-1">Main LR (Channel Faders)</option>';
+  for(let b=0;b<16;b++) opts += `<option value="${b}">Sends -> Bus ${String(b+1).padStart(2,'0')} (${esc(S.bus[b].n)})</option>`;
+  if(busSel.innerHTML!==opts) busSel.innerHTML = opts;
+  busSel.value = String(S.activeBus);
+
+  const bankMap = {ch1:['ch',0],ch2:['ch',8],ch3:['ch',16],ch4:['ch',24],aux:['aux',0],bus1:['bus',0],bus2:['bus',8],dca:['dca',0]};
+  const [kind,start] = bankMap[faderBank] || ['ch',0];
+  const isSend = (S.activeBus>=0 && kind==='ch');
+  const curKey = faderBank + ':' + S.activeBus;
+  const wrap = document.getElementById('fadersWrap');
+  const mKind = S.activeBus>=0?'bus':'main', mIdx = S.activeBus>=0?S.activeBus:0, mst = getStrip(mKind,mIdx);
+
+  if(fadersBuiltKey !== curKey || wrap.children.length !== 9){
+    let html = '';
+    for(let i=0;i<8;i++){
+      const idx=start+i, st=getStrip(kind,idx);
+      const val = isSend?(S.sendsF?S.sendsF[idx]:0):st.f;
+      const isMuted = isSend?!(S.sendsOn?S.sendsOn[idx]:1):!!st.m;
+      const key = isSend?`send:${idx}:${S.activeBus}`:`${kind}:${idx}`;
+      html += fstripHtml(kind,idx,st,val,isMuted,key,isSend,'');
+    }
+    html += fstripHtml(mKind,mIdx,mst,mst.f,!!mst.m,`${mKind}:${mIdx}`,false,'master');
+    wrap.innerHTML = html;
+    wrap.querySelectorAll('.rslider').forEach(el=>syncSlider(el));
+    fadersBuiltKey = curKey;
+  } else {
+    for(let i=0;i<8;i++){
+      const idx=start+i, st=getStrip(kind,idx);
+      const val = isSend?(S.sendsF?S.sendsF[idx]:0):st.f;
+      const isMuted = isSend?!(S.sendsOn?S.sendsOn[idx]:1):!!st.m;
+      const key = isSend?`send:${idx}:${S.activeBus}`:`${kind}:${idx}`;
+      updateFstripRow(wrap.children[i],kind,idx,st,val,isMuted,key,isSend);
+    }
+    updateFstripRow(wrap.children[8],mKind,mIdx,mst,mst.f,!!mst.m,`${mKind}:${mIdx}`,false);
+  }
+}
+
+function onStripFaderInput(kind,idx,isSend,el,key){
+  const v = parseFloat(el.value);
+  const dbStr = formatDb(v);
+  syncSlider(el, dbStr);
+  const lbl = document.getElementById('fdb_'+key);
+  if(lbl) lbl.textContent = dbStr;
+  if(isSend){
+    if(S.sendsF) S.sendsF[idx] = v;
+    sendCmd({cmd:'setSendLevel',idx,bus:S.activeBus,val:v});
+  } else {
+    const st = getStrip(kind,idx); if(st) st.f = v;
+    sendCmd({cmd:'setFader',kind,idx,val:v});
+  }
+}
+
+function updateMetersOnly(m){
+  if(!S) return;
+  for(let i=0;i<32;i++){
+    const pct = (m.ch[i]||0)+'%';
+    if(S.ch[i]) S.ch[i].mt = m.ch[i]||0;
+    const ov = document.getElementById('ovVu'+i); if(ov) ov.style.width = pct;
+    const fvu = document.getElementById('fvu_ch:'+i); if(fvu) fvu.style.setProperty('--meter-pct', pct);
+  }
+  for(let b=0;b<16;b++){
+    const pct = (m.bus[b]||0)+'%';
+    if(S.bus[b]) S.bus[b].mt = m.bus[b]||0;
+    const fvu = document.getElementById('fvu_bus:'+b); if(fvu) fvu.style.setProperty('--meter-pct', pct);
+  }
+  const mpct = (m.main||0)+'%';
+  if(S.main) S.main.mt = m.main||0;
+  const mv = document.getElementById('mainVuFill'); if(mv) mv.style.width = mpct;
+  const mf = document.getElementById('fvu_main:0'); if(mf) mf.style.setProperty('--meter-pct', mpct);
+}
+
+function renderAll(){
+  if(!S) return;
+  renderHeader();
+  if(activeTab==='overview' && !draggingKey) renderOverview();
+  else if(activeTab==='config' && !draggingKey) renderConfigTab();
+  else if(activeTab==='scribble') renderScribbleTab();
+  else if(activeTab==='matrix') renderMatrixTab();
+  else if(activeTab==='faders' && !draggingKey) renderFadersTab();
+  else if(activeTab==='presets') renderPresetsTab();
+}
+
+const LIB_SCOPES = [[1,'HA'],[2,'Cfg'],[4,'Gate'],[8,'Dyn'],[16,'EQ'],[32,'Sends']];
+const LIB_TARGETS = [
+  ...Array.from({length:32},(_,i)=>['ch',i]),
+  ...Array.from({length:8},(_,i)=>['aux',i]),
+  ...Array.from({length:16},(_,i)=>['bus',i]),
+  ['main',0]
+];
+
+function setLibMode(m){
+  libMode = (m==='presets') ? 'presets' : 'scenes';
+  renderPresetsTab();
+}
+function setLibBank(b){
+  libBank = Math.max(0, Math.min(3, b|0));
+  libSelSlot = libBank*8 + (libSelSlot & 7);
+  renderPresetsTab();
+}
+function selectLibSlot(slot){
+  libSelSlot = Math.max(0, Math.min(31, slot|0));
+  libBank = (libSelSlot >> 3);
+  renderPresetsTab();
+}
+function toggleLibScope(bit){
+  const next = libScope ^ bit;
+  if(next !== 0) libScope = next;
+  renderPresetsTab();
+}
+function stepLibTarget(dir){
+  const idx = LIB_TARGETS.findIndex(([k,i])=>k===libTarget.kind && i===libTarget.idx);
+  const nextIdx = idx < 0 ? (dir>0?0:LIB_TARGETS.length-1) : (idx + dir + LIB_TARGETS.length) % LIB_TARGETS.length;
+  const [kind, stripIdx] = LIB_TARGETS[nextIdx];
+  libTarget = {kind, idx:stripIdx};
+  selectStrip(kind, stripIdx, false);
+}
+function onLibTargetChange(){
+  const v = document.getElementById('prTargetSel').value;
+  const [kind, s] = v.split(':');
+  const idx = Number(s)||0;
+  libTarget = {kind, idx};
+  selectStrip(kind, idx, false);
+}
+function openLoadConfirm(){
+  if(!S) return;
+  const arr = (libMode==='scenes') ? (S.scenes||[]) : (S.presets||[]);
+  const slot = arr[libSelSlot] || {n:'',nt:'',h:0};
+  if(!slot.h) return;
+  const desc = document.getElementById('confirmLoadDesc');
+  const okBtn = document.getElementById('confirmLoadOk');
+  if(libMode==='scenes'){
+    document.getElementById('confirmLoadTitle').textContent = `Load Scene ${String(libSelSlot).padStart(2,'0')}?`;
+    desc.textContent = `Recall "${slot.n||('Scene '+libSelSlot)}"${slot.nt?' ('+slot.nt+')':''} onto the console? Active faders, mutes, and routing will change.`;
+    okBtn.textContent = 'Load Scene';
+  } else {
+    const tStrip = getStrip(libTarget.kind, libTarget.idx);
+    const tName = tStrip&&tStrip.n ? ` (${tStrip.n})` : '';
+    const scopes = LIB_SCOPES.filter(([b])=>libScope&b).map(([,l])=>l).join(', ');
+    document.getElementById('confirmLoadTitle').textContent = `Load Preset ${String(libSelSlot+1).padStart(2,'0')}?`;
+    desc.textContent = `Apply "${slot.n||('Preset '+(libSelSlot+1))}" onto ${stripTag(libTarget.kind,libTarget.idx)}${tName} [${scopes}]?`;
+    okBtn.textContent = 'Load Preset';
+  }
+  const dlg = document.getElementById('confirmLoadDialog');
+  dlg.returnValue = '';
+  dlg.showModal();
+}
+function closeConfirmLoad(confirm){
+  const dlg = document.getElementById('confirmLoadDialog');
+  if(dlg.open) dlg.close(confirm ? 'load' : 'cancel');
+}
+function validateSaveName(showErr){
+  const inp = document.getElementById('saveSlotName');
+  const err = document.getElementById('saveSlotErr');
+  const ok = inp.value.trim().length > 0;
+  if(showErr){
+    inp.setAttribute('aria-invalid', ok ? 'false' : 'true');
+    err.textContent = ok ? '' : 'Enter a name for this slot.';
+  } else if(ok){
+    inp.setAttribute('aria-invalid','false');
+    err.textContent = '';
+  }
+  return ok;
+}
+function openSaveSlotDialog(){
+  if(!S) return;
+  const nameInp = document.getElementById('saveSlotName');
+  const notesWrap = document.getElementById('saveSlotNotesWrap');
+  const notesInp = document.getElementById('saveSlotNotes');
+  saveNameTouched = false;
+  document.getElementById('saveSlotErr').textContent = '';
+  nameInp.removeAttribute('aria-invalid');
+  if(libMode==='scenes'){
+    const sc = (S.scenes||[])[libSelSlot] || {n:'',nt:''};
+    document.getElementById('saveSlotTitle').textContent = `Save Mixer to Scene ${String(libSelSlot).padStart(2,'0')}`;
+    document.getElementById('saveSlotHelp').textContent = 'Captures current mixer settings to this X32 scene slot.';
+    nameInp.value = sc.n || ('Scene '+String(libSelSlot).padStart(2,'0'));
+    notesInp.value = sc.nt || '';
+    notesWrap.hidden = false;
+  } else {
+    const pr = (S.presets||[])[libSelSlot] || {n:''};
+    const st = getStrip(libTarget.kind, libTarget.idx);
+    document.getElementById('saveSlotTitle').textContent = `Save ${stripTag(libTarget.kind,libTarget.idx)} to Preset ${String(libSelSlot+1).padStart(2,'0')}`;
+    document.getElementById('saveSlotHelp').textContent = 'Saves channel library parameters from the selected target strip.';
+    nameInp.value = pr.n || (st&&st.n) || ('Preset '+String(libSelSlot+1).padStart(2,'0'));
+    notesInp.value = '';
+    notesWrap.hidden = true;
+  }
+  const dlg = document.getElementById('saveSlotDialog');
+  dlg.returnValue = '';
+  dlg.showModal();
+  setTimeout(()=>{ nameInp.focus(); nameInp.select(); }, 20);
+}
+function closeSaveDialog(){
+  const dlg = document.getElementById('saveSlotDialog');
+  if(dlg.open) dlg.close('cancel');
+}
+
+function renderPresetsTab(){
+  if(!S) return;
+  const isScenes = (libMode === 'scenes');
+  document.getElementById('prModeScenes').className = 'btn sm '+(isScenes?'primary':'');
+  document.getElementById('prModePresets').className = 'btn sm '+(!isScenes?'primary':'');
+  const curScIdx = (S.curScene|0);
+  const curSc = (S.scenes||[])[curScIdx];
+  document.getElementById('prCurSceneBadge').textContent =
+    'Cur Sc ' + String(curScIdx).padStart(2,'0') + (curSc&&curSc.n ? ' · '+curSc.n : '');
+
+  const bankRow = document.getElementById('prBankRow');
+  const labels = isScenes ? ['00–07','08–15','16–23','24–31'] : ['01–08','09–16','17–24','25–32'];
+  bankRow.innerHTML = labels.map((lbl,b)=>
+    `<button type="button" class="btn sm ${libBank===b?'primary':''}" onclick="setLibBank(${b})">${lbl}</button>`
+  ).join('');
+
+  const arr = isScenes ? (S.scenes||[]) : (S.presets||[]);
+  const curSlot = arr[libSelSlot] || {n:'',nt:'',h:0};
+  const slotNumStr = isScenes ? String(libSelSlot).padStart(2,'0') : String(libSelSlot+1).padStart(2,'0');
+  document.getElementById('prSelTitle').textContent =
+    (isScenes ? 'Scene ' : 'Preset ') + slotNumStr + ': ' + (curSlot.n || '(Empty)');
+  document.getElementById('prSelMeta').textContent = curSlot.h ? 'SAVED' : 'EMPTY';
+  document.getElementById('prSelSub').textContent = isScenes
+    ? (curSlot.nt || (curSlot.h ? 'No scene notes' : 'Empty scene slot'))
+    : (curSlot.h ? 'Applies checked blocks below to target strip' : 'Empty channel preset slot');
+
+  document.getElementById('prTargetRow').hidden = isScenes;
+  document.getElementById('prScopeRow').hidden = isScenes;
+  if(!isScenes){
+    const selEl = document.getElementById('prTargetSel');
+    const wantVal = libTarget.kind+':'+libTarget.idx;
+    if(selEl.value !== wantVal) selEl.value = wantVal;
+    LIB_TARGETS.forEach(([k,idx],n)=>{
+      const st = getStrip(k,idx);
+      const txt = stripTag(k,idx) + (st&&st.n ? ' · '+st.n : '');
+      if(selEl.options[n] && selEl.options[n].textContent !== txt) selEl.options[n].textContent = txt;
+    });
+    document.getElementById('prScopeRow').innerHTML =
+      '<span class="muted" style="font-size:11px;font-weight:700">Scope</span>' +
+      LIB_SCOPES.map(([b,lbl])=>
+        `<button type="button" class="btn sm ${(libScope&b)?'primary':''}" onclick="toggleLibScope(${b})">${lbl}</button>`
+      ).join('');
+  }
+
+  const loadBtn = document.getElementById('prLoadBtn');
+  loadBtn.disabled = !curSlot.h;
+  loadBtn.textContent = isScenes ? 'Load Scene...' : `Load -> ${stripTag(libTarget.kind,libTarget.idx)}...`;
+  document.getElementById('prSaveBtn').textContent = isScenes ? 'Save Scene...' : `Save ${stripTag(libTarget.kind,libTarget.idx)}...`;
+
+  const base = libBank * 8;
+  let html = '';
+  for(let i=0;i<8;i++){
+    const idx = base + i;
+    const item = arr[idx] || {n:'',nt:'',h:0};
+    const isSel = (idx === libSelSlot);
+    const isLive = isScenes && (idx === curScIdx);
+    const topL = (isScenes ? 'SC ' : 'P') + String(isScenes ? idx : idx+1).padStart(2,'0');
+    const topR = isLive ? '<span style="color:var(--green)">LIVE</span>' : (item.h ? 'SAVED' : 'EMPTY');
+    const nm = item.n ? esc(item.n) : '<span class="muted">(Empty)</span>';
+    const sub = isScenes ? esc(item.nt || (item.h?'Tap to select':'Empty slot')) : (item.h ? 'Channel Preset' : 'Empty slot');
+    html += `<button type="button" class="pr-card ${isSel?'sel':''} ${isLive?'live':''}" onclick="selectLibSlot(${idx})">
+      <div class="pr-card-top"><span class="mono">${topL}</span><span>${topR}</span></div>
+      <div class="pr-card-name">${nm}</div>
+      <div class="pr-card-sub">${sub}</div>
+    </button>`;
+  }
+  document.getElementById('presetGrid').innerHTML = html;
+}
+
+function initStaticControls(){
+  document.getElementById('prTargetSel').innerHTML = LIB_TARGETS.map(([k,i])=>
+    `<option value="${k}:${i}">${stripTag(k,i)}</option>`
+  ).join('');
+
+  document.getElementById('confirmLoadDialog').addEventListener('close', e=>{
+    const dlg = e.currentTarget;
+    const ok = (dlg.returnValue === 'load');
+    dlg.returnValue = '';
+    if(!ok || !S) return;
+    if(libMode === 'scenes'){
+      sendCmd({cmd:'recallScene', slot:libSelSlot, idx:libSelSlot});
+    } else {
+      sendCmd({cmd:'loadPreset', slot:libSelSlot, kind:libTarget.kind, idx:libTarget.idx, scope:libScope});
+    }
+  });
+
+  const sInp = document.getElementById('saveSlotName');
+  sInp.addEventListener('input', ()=>{
+    if(saveNameTouched || sInp.value.trim().length > 0) validateSaveName(false);
+  });
+  sInp.addEventListener('blur', ()=>{
+    if(sInp.value.trim().length === 0 && saveNameTouched) validateSaveName(true);
+    else if(sInp.value !== sInp.defaultValue){ saveNameTouched = true; validateSaveName(true); }
+  });
+  document.getElementById('saveSlotForm').addEventListener('submit', e=>{
+    e.preventDefault();
+    saveNameTouched = true;
+    if(!validateSaveName(true)){ sInp.focus(); return; }
+    const name = sInp.value.trim().slice(0,23);
+    const notes = document.getElementById('saveSlotNotes').value.trim().slice(0,35);
+    if(libMode === 'scenes'){
+      sendCmd({cmd:'saveScene', slot:libSelSlot, idx:libSelSlot, name, notes});
+    } else {
+      sendCmd({cmd:'savePreset', slot:libSelSlot, kind:libTarget.kind, idx:libTarget.idx, name});
+    }
+    closeSaveDialog();
+  });
+
+  document.getElementById('iconSelect').innerHTML = ICON_GROUPS.map(([grp,start,csv])=>
+    `<optgroup label="${esc(grp)}">${csv.split(',').map((nm,k)=>`<option value="${start+k}">#${start+k} ${esc(nm)}</option>`).join('')}</optgroup>`
+  ).join('');
+
+  document.getElementById('swatchGrid').innerHTML = X32_COLORS.slice(0,8).map(c=>
+    `<button type="button" class="swatch" data-base="${c.id}" style="background:${c.bg};color:${c.fg}" onclick="setSelBaseColor(${c.id})">${c.code}</button>`
+  ).join('') + `<button id="invertColorBtn" type="button" class="swatch inv-btn" onclick="toggleColorInvert()">INVERT</button>`;
+
+  document.getElementById('cfgCatTabs').innerHTML = [['ch1','Ch 1–16'],['ch2','Ch 17–32'],['aux','Aux 1–8']]
+    .map(([id,lbl])=>`<button type="button" class="btn sm" data-cfgcat="${id}" onclick="setCfgCategory('${id}')">${lbl}</button>`).join('');
+
+  document.getElementById('cfgSrcTabs').innerHTML = [['In 1–16',0],['In 17–32',1],['Aux/Fx',2],['Bus 1–16',3]]
+    .map(([lbl,t])=>`<button type="button" class="btn sm" data-srctab="${t}" onclick="setCfgSrcTab(${t})">${lbl}</button>`).join('');
+
+  document.getElementById('catTabs').innerHTML = [['ch1','Ch 1–16'],['ch2','Ch 17–32'],['dca','DCA 1–8'],['bus','Bus 1–16'],['aux','Aux 1–8'],['main','Main LR']]
+    .map(([id,lbl])=>`<button type="button" class="btn sm" data-cat="${id}" onclick="setScCategory('${id}')">${lbl}</button>`).join('');
+
+  document.getElementById('faderBankTabs').innerHTML = [['ch1','Ch 1–8'],['ch2','Ch 9–16'],['ch3','Ch 17–24'],['ch4','Ch 25–32'],['aux','Aux 1–8'],['bus1','Bus 1–8'],['bus2','Bus 9–16'],['dca','DCA 1–8']]
+    .map(([id,lbl])=>`<button type="button" class="btn sm" data-fbank="${id}" onclick="setFaderBank('${id}')">${lbl}</button>`).join('');
+
+  const ni = document.getElementById('nameInput');
+  ni.addEventListener('input',()=>{
+    nameDirtyInEditor = true;
+    document.getElementById('lcdName').textContent = ni.value || '(unnamed)';
+    clearTimeout(nameSendTimer);
+    nameSendTimer = setTimeout(()=>{ if(nameDirtyInEditor) saveNameOnly(); }, 180);
+  });
+  ni.addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); saveNameAndStep(e.shiftKey?-1:1); } });
+
+  const tb = document.getElementById('tabBar');
+  tb.addEventListener('click',e=>{ const b=e.target.closest('.tabbtn'); if(b) switchTab(b.dataset.tab); });
+  tb.addEventListener('keydown',e=>{
+    const tabs = [...tb.querySelectorAll('[role="tab"]')];
+    const i = tabs.indexOf(document.activeElement);
+    if(i < 0) return;
+    let next = -1;
+    if(e.key==='ArrowRight') next = (i+1)%tabs.length;
+    else if(e.key==='ArrowLeft') next = (i-1+tabs.length)%tabs.length;
+    else if(e.key==='Home') next = 0;
+    else if(e.key==='End') next = tabs.length-1;
+    if(next >= 0){ e.preventDefault(); switchTab(tabs[next].dataset.tab, true); }
+  });
+
+  const pk = document.getElementById('passkeyInput');
+  pk.addEventListener('input',()=>{
+    pk.value = pk.value.replace(/\D/g,'').slice(0,6);
+    if(passkeyTouched || pk.value.length===6) validateKeyField(true);
+  });
+  pk.addEventListener('blur',()=>{ passkeyTouched=true; if(pk.value.length) validateKeyField(true); });
+  document.getElementById('authForm').addEventListener('submit',e=>{
+    e.preventDefault(); passkeyTouched=true;
+    if(validateKeyField(true)) unlockWithKey(pk.value,false); else pk.focus();
+  });
+  document.getElementById('authDialog').addEventListener('cancel',e=>{ if(!authOk) e.preventDefault(); });
+  document.getElementById('iconDialog').addEventListener('close',()=>{
+    iconGridOpen = false;
+    document.getElementById('iconGridBtn').classList.remove('primary');
+  });
+  document.addEventListener('visibilitychange',()=>{
+    if(!document.hidden && authOk && (!ws || ws.readyState>1)) connectWs();
+  });
+}
+
+initStaticControls();
+loadX32Icons();
+window.addEventListener('pointerup',()=>{ draggingKey=null; });
+window.addEventListener('pointercancel',()=>{ draggingKey=null; });
+
+(function bootAuth(){
+  const qs = new URLSearchParams(location.search);
+  const urlPin = (qs.get('pin')||qs.get('key')||'').trim();
+  if(/^\d{6}$/.test(urlPin)){
+    qs.delete('pin');
+    qs.delete('key');
+    const clean = location.pathname + (qs.toString()?('?'+qs):'') + location.hash;
+    history.replaceState(null,'',clean);
+    unlockWithKey(urlPin,true);
+  } else {
+    fetchState(true).then(ok=>{
+      if(ok) connectWs();
+      else showAuthDialog('');
+    });
+  }
+})();
+</script>
+</body>
+</html>

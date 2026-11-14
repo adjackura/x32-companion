@@ -1,0 +1,21 @@
+# Build outputs
+build/
+*.bin
+*.elf
+*.map
+*.eep
+*.hex
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Editor / OS metadata
+.DS_Store
+.vscode/
+.idea/
+
+# Local secrets / signing keys
+*.pem
+*.key
+.env
