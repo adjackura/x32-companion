@@ -20,6 +20,7 @@
 #include <ctime>
 #include <new>
 
+#include "board_driver.h"
 #include "mixer_state.h"
 #include "osc_codec.h"
 
@@ -49,11 +50,6 @@ PendingManifest s_pending;
 
 void *otaMbedtlsCalloc(size_t n, size_t size) {
   if (n != 0 && size > SIZE_MAX / n) return nullptr;
-  const size_t total = n * size;
-  if (total >= 1024u) {
-    void *p = heap_caps_calloc(n, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
-    if (p) return p;
-  }
   void *p = heap_caps_calloc(n, size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
   if (p) return p;
   return heap_caps_calloc(n, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
@@ -63,7 +59,7 @@ void otaMbedtlsFree(void *ptr) {
   heap_caps_free(ptr);
 }
 
-void ensureMbedtlsPsramAllocator() {
+void ensureMbedtlsAllocator() {
   static std::atomic<bool> s_configured{false};
   if (!s_configured.exchange(true)) {
     mbedtls_platform_set_calloc_free(otaMbedtlsCalloc, otaMbedtlsFree);
@@ -131,7 +127,6 @@ class FirmwareSink : public Stream {
   uint32_t expectedSize = 0;
   uint32_t written = 0;
   const char *ver = "";
-  uint8_t lastPct = 0;
   bool aborted = false;
   char failReason[48] = {0};
 
@@ -175,15 +170,6 @@ class FirmwareSink : public Stream {
     }
 
     written += static_cast<uint32_t>(w);
-    const uint8_t pct = expectedSize > 0
-                            ? static_cast<uint8_t>((static_cast<uint64_t>(written) * 100u) / expectedSize)
-                            : 0u;
-    if (pct >= lastPct + 2u || written == expectedSize) {
-      lastPct = pct;
-      char msg[64];
-      std::snprintf(msg, sizeof(msg), "Downloading v%s (%u%%)...", ver, static_cast<unsigned>(pct));
-      setOtaState(OTA_DOWNLOADING, pct, ver, msg);
-    }
     vTaskDelay(1);
     return w;
   }
@@ -248,7 +234,7 @@ bool httpsGetWithRedirects(const char *startUrl,
                            int *outHttpCode,
                            char *errBuf,
                            size_t errCap) {
-  ensureMbedtlsPsramAllocator();
+  ensureMbedtlsAllocator();
   if (outHttpCode) *outHttpCode = 0;
   String currentUrl = startUrl ? startUrl : "";
 
@@ -347,7 +333,11 @@ void otaCheckTask(void *param) {
   setOtaState(OTA_CHECKING, 0, "", "Checking GitHub Releases...");
 
   ManifestSink *sink = static_cast<ManifestSink *>(
-      heap_caps_malloc(sizeof(ManifestSink), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+      heap_caps_malloc(sizeof(ManifestSink), MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+  if (!sink) {
+    sink = static_cast<ManifestSink *>(
+        heap_caps_malloc(sizeof(ManifestSink), MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
+  }
   if (!sink) sink = static_cast<ManifestSink *>(malloc(sizeof(ManifestSink)));
   if (!sink) {
     setOtaState(OTA_ERROR, 0, nullptr, "Out of memory");
@@ -363,7 +353,7 @@ void otaCheckTask(void *param) {
   if (!ok) {
     setOtaState(OTA_ERROR, 0, nullptr, err[0] ? err : "Manifest fetch failed");
     sink->~ManifestSink();
-    free(sink);
+    heap_caps_free(sink);
     s_otaBusy.store(false);
     vTaskDelete(nullptr);
     return;
@@ -371,7 +361,7 @@ void otaCheckTask(void *param) {
   if (sink->overflow || sink->len == 0) {
     setOtaState(OTA_ERROR, 0, nullptr, "Manifest empty or too large");
     sink->~ManifestSink();
-    free(sink);
+    heap_caps_free(sink);
     s_otaBusy.store(false);
     vTaskDelete(nullptr);
     return;
@@ -380,7 +370,7 @@ void otaCheckTask(void *param) {
   JsonDocument doc;
   const DeserializationError jErr = deserializeJson(doc, sink->buf, sink->len);
   sink->~ManifestSink();
-  free(sink);
+  heap_caps_free(sink);
 
   if (jErr != DeserializationError::Ok) {
     setOtaState(OTA_ERROR, 0, nullptr, "Invalid manifest JSON");
@@ -458,9 +448,14 @@ void otaInstallTask(void *param) {
   }
 
   const PendingManifest manifest = s_pending;
-  setOtaState(OTA_DOWNLOADING, 0, manifest.version, "Connecting to GitHub CDN...");
+  char prepMsg[64];
+  std::snprintf(prepMsg, sizeof(prepMsg), "Installing v%s (screen blanks ~10s)...", manifest.version);
+  setOtaState(OTA_DOWNLOADING, 0, manifest.version, prepMsg);
+  vTaskDelay(pdMS_TO_TICKS(450));
+  boardSetOtaFlashBlank(true);
 
   if (!Update.begin(manifest.size, U_FLASH)) {
+    boardSetOtaFlashBlank(false);
     setOtaState(OTA_ERROR, 0, nullptr, "Not enough OTA flash space");
     s_otaBusy.store(false);
     vTaskDelete(nullptr);
@@ -483,13 +478,13 @@ void otaInstallTask(void *param) {
     Update.abort();
     mbedtls_sha256_free(&sha);
     const char *msg = sink.failReason[0] ? sink.failReason : (err[0] ? err : "Download failed - unchanged");
+    boardSetOtaFlashBlank(false);
     setOtaState(OTA_ERROR, 0, nullptr, msg);
     s_otaBusy.store(false);
     vTaskDelete(nullptr);
     return;
   }
 
-  setOtaState(OTA_VERIFYING, 100, manifest.version, "Verifying SHA-256...");
   uint8_t digest[32] = {0};
   mbedtls_sha256_finish(&sha, digest);
   mbedtls_sha256_free(&sha);
@@ -504,6 +499,7 @@ void otaInstallTask(void *param) {
 
   if (std::strcmp(actualHex, manifest.sha256Lower) != 0) {
     Update.abort();
+    boardSetOtaFlashBlank(false);
     setOtaState(OTA_ERROR, 0, nullptr, "SHA-256 mismatch - aborted safely");
     s_otaBusy.store(false);
     vTaskDelete(nullptr);
@@ -512,6 +508,7 @@ void otaInstallTask(void *param) {
 
   if (!Update.end(false)) {
     Update.abort();
+    boardSetOtaFlashBlank(false);
     setOtaState(OTA_ERROR, 0, nullptr, "Flash finalize failed - unchanged");
     s_otaBusy.store(false);
     vTaskDelete(nullptr);
@@ -519,19 +516,16 @@ void otaInstallTask(void *param) {
   }
 
   s_pending.valid = false;
-  char rebootMsg[64];
-  std::snprintf(rebootMsg, sizeof(rebootMsg), "Verified! Rebooting into v%s...", manifest.version);
-  setOtaState(OTA_REBOOTING, 100, manifest.version, rebootMsg);
   Serial.printf("[OTA] Verified v%s (%u bytes). Rebooting...\n",
                 manifest.version, static_cast<unsigned>(manifest.size));
-  vTaskDelay(pdMS_TO_TICKS(1200));
+  vTaskDelay(pdMS_TO_TICKS(150));
   ESP.restart();
 }
 
 }  // namespace
 
 void otaUpdaterMarkBootValid() {
-  ensureMbedtlsPsramAllocator();
+  ensureMbedtlsAllocator();
   const esp_partition_t *running = esp_ota_get_running_partition();
   if (running) {
     esp_ota_img_states_t state = ESP_OTA_IMG_UNDEFINED;
@@ -545,25 +539,11 @@ void otaUpdaterMarkBootValid() {
       }
     }
   }
-#ifdef X32_OTA_BOOT_SELFTEST
-  xTaskCreatePinnedToCore(
-      [](void *) {
-        for (int i = 0; i < 150; ++i) {
-          if (WiFi.status() == WL_CONNECTED) break;
-          vTaskDelay(pdMS_TO_TICKS(100));
-        }
-        if (WiFi.status() == WL_CONNECTED) {
-          otaUpdaterRequestCheck();
-        }
-        vTaskDelete(nullptr);
-      },
-      "ota_selftest", 4096, nullptr, 1, nullptr, 0);
-#endif
 }
 
 void otaUpdaterRequestCheck() {
   if (s_otaBusy.exchange(true)) return;
-  if (xTaskCreatePinnedToCore(otaCheckTask, "ota_check", 12288, nullptr, 2, nullptr, 0) != pdPASS) {
+  if (xTaskCreatePinnedToCore(otaCheckTask, "ota_check", 12288, nullptr, 1, nullptr, 0) != pdPASS) {
     s_otaBusy.store(false);
     setOtaState(OTA_ERROR, 0, nullptr, "Failed to start OTA check");
   }
@@ -571,7 +551,7 @@ void otaUpdaterRequestCheck() {
 
 void otaUpdaterRequestInstall() {
   if (s_otaBusy.exchange(true)) return;
-  if (xTaskCreatePinnedToCore(otaInstallTask, "ota_install", 12288, nullptr, 2, nullptr, 0) != pdPASS) {
+  if (xTaskCreatePinnedToCore(otaInstallTask, "ota_install", 12288, nullptr, 1, nullptr, 0) != pdPASS) {
     s_otaBusy.store(false);
     setOtaState(OTA_ERROR, 0, nullptr, "Failed to start OTA install");
   }

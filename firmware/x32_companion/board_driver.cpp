@@ -34,6 +34,7 @@ static constexpr uint8_t CH422G_BIT_USB_SEL = (1u << 5);
 
 uint8_t s_ch422g_out = CH422G_BIT_TP_RST | CH422G_BIT_LCD_BL | CH422G_BIT_LCD_RST | CH422G_BIT_SD_CS;
 std::atomic<bool> s_backlight_on{true};
+std::atomic<bool> s_ota_flash_blank{false};
 std::atomic<uint32_t> s_activity_seq{1};
 std::atomic<bool> s_swallow_until_release{false};
 std::atomic<bool> s_wait_release_before_wake{false};
@@ -137,7 +138,7 @@ bool initTouchHardware() {
 }
 
 void lvglDispFlushCb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *color_p) {
-  if (!s_panel) {
+  if (!s_panel || s_ota_flash_blank.load(std::memory_order_acquire)) {
     lv_disp_flush_ready(drv);
     return;
   }
@@ -161,6 +162,12 @@ void lvglDispFlushCb(lv_disp_drv_t *drv, const lv_area_t *area, lv_color_t *colo
 
 void lvglTouchReadCb(lv_indev_drv_t *indev_drv, lv_indev_data_t *data) {
   (void)indev_drv;
+  if (s_ota_flash_blank.load(std::memory_order_acquire)) {
+    data->point.x = s_last_x;
+    data->point.y = s_last_y;
+    data->state = LV_INDEV_STATE_RELEASED;
+    return;
+  }
   const uint32_t now = millis();
   const bool blOnAtEntry = s_backlight_on.load(std::memory_order_acquire);
   bool swallowing = s_swallow_until_release.load(std::memory_order_relaxed);
@@ -328,7 +335,7 @@ bool boardDriverInit() {
 
   lv_init();
 
-  static constexpr size_t kRowCandidates[] = {80, 60, 48, 32};
+  static constexpr size_t kRowCandidates[] = {40, 32};
   size_t bufPixels = 0;
   const char *bufLoc = "INTERNAL";
   lv_color_t *buf1 = nullptr;
@@ -373,8 +380,9 @@ void boardSetBacklight(bool on) {
   if (s_i2cMutex && xSemaphoreTake(s_i2cMutex, pdMS_TO_TICKS(100)) != pdTRUE) {
     return;
   }
+  const bool physOn = on && !s_ota_flash_blank.load(std::memory_order_acquire);
   uint8_t next = s_ch422g_out;
-  if (on) {
+  if (physOn) {
     next |= CH422G_BIT_LCD_BL;
   } else {
     next &= static_cast<uint8_t>(~CH422G_BIT_LCD_BL);
@@ -390,6 +398,26 @@ void boardSetBacklight(bool on) {
     }
   }
   if (s_i2cMutex) xSemaphoreGive(s_i2cMutex);
+}
+
+void boardSetOtaFlashBlank(bool blank) {
+  if (blank) {
+    s_ota_flash_blank.store(true, std::memory_order_release);
+    s_last_pressed = false;
+    if (s_i2cMutex && xSemaphoreTake(s_i2cMutex, pdMS_TO_TICKS(100)) == pdTRUE) {
+      ch422gWriteLocked(static_cast<uint8_t>(s_ch422g_out & ~CH422G_BIT_LCD_BL));
+      xSemaphoreGive(s_i2cMutex);
+    }
+  } else {
+    if (s_panel) {
+      esp_lcd_rgb_panel_restart(s_panel);
+    }
+    delay(50);
+    s_ota_flash_blank.store(false, std::memory_order_release);
+    if (s_backlight_on.load(std::memory_order_acquire)) {
+      boardSetBacklight(true);
+    }
+  }
 }
 
 bool boardGetBacklight() {

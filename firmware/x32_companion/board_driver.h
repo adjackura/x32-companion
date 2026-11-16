@@ -14,5 +14,6 @@ bool boardDriverInit();
 // Controls LCD backlight via CH422G EXIO2 while preserving EXIO5=0.
 void boardSetBacklight(bool on);
 bool boardGetBacklight();
+void boardSetOtaFlashBlank(bool blank);
 uint32_t boardGetActivitySeq();
 bool boardIsTouchDetected();
