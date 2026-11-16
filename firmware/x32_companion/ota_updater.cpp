@@ -9,10 +9,12 @@
 #include <WiFi.h>
 #include <esp_heap_caps.h>
 #include <esp_ota_ops.h>
+#include <mbedtls/platform.h>
 #include <mbedtls/sha256.h>
 #include <sys/time.h>
 #include <atomic>
 #include <cctype>
+#include <cstdint>
 #include <cstdio>
 #include <cstring>
 #include <ctime>
@@ -44,6 +46,29 @@ struct PendingManifest {
 
 std::atomic<bool> s_otaBusy{false};
 PendingManifest s_pending;
+
+void *otaMbedtlsCalloc(size_t n, size_t size) {
+  if (n != 0 && size > SIZE_MAX / n) return nullptr;
+  const size_t total = n * size;
+  if (total >= 1024u) {
+    void *p = heap_caps_calloc(n, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (p) return p;
+  }
+  void *p = heap_caps_calloc(n, size, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+  if (p) return p;
+  return heap_caps_calloc(n, size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+}
+
+void otaMbedtlsFree(void *ptr) {
+  heap_caps_free(ptr);
+}
+
+void ensureMbedtlsPsramAllocator() {
+  static std::atomic<bool> s_configured{false};
+  if (!s_configured.exchange(true)) {
+    mbedtls_platform_set_calloc_free(otaMbedtlsCalloc, otaMbedtlsFree);
+  }
+}
 
 void setOtaState(uint8_t phase, uint8_t pct, const char *ver, const char *msg) {
   if (!mixerStateLock(50)) return;
@@ -223,6 +248,7 @@ bool httpsGetWithRedirects(const char *startUrl,
                            int *outHttpCode,
                            char *errBuf,
                            size_t errCap) {
+  ensureMbedtlsPsramAllocator();
   if (outHttpCode) *outHttpCode = 0;
   String currentUrl = startUrl ? startUrl : "";
 
@@ -390,11 +416,13 @@ void otaCheckTask(void *param) {
     char msg[64];
     std::snprintf(msg, sizeof(msg), "v%s available - tap Install", cleanVer);
     setOtaState(OTA_AVAILABLE, 0, cleanVer, msg);
+    Serial.printf("[OTA] Check OK: v%s available (%u bytes)\n", cleanVer, static_cast<unsigned>(size));
   } else {
     s_pending.valid = false;
     char msg[64];
     std::snprintf(msg, sizeof(msg), "Up to date (v%s)", X32_COMPANION_FW_VERSION);
     setOtaState(OTA_UP_TO_DATE, 0, cleanVer, msg);
+    Serial.printf("[OTA] Check OK: up to date (v%s)\n", X32_COMPANION_FW_VERSION);
   }
 
   s_otaBusy.store(false);
@@ -503,23 +531,39 @@ void otaInstallTask(void *param) {
 }  // namespace
 
 void otaUpdaterMarkBootValid() {
+  ensureMbedtlsPsramAllocator();
   const esp_partition_t *running = esp_ota_get_running_partition();
-  if (!running) return;
-  esp_ota_img_states_t state = ESP_OTA_IMG_UNDEFINED;
-  if (esp_ota_get_state_partition(running, &state) == ESP_OK &&
-      state == ESP_OTA_IMG_PENDING_VERIFY) {
-    if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
-      Serial.printf("[OTA] Boot verified on partition %s (v%s)\n",
-                    running->label, X32_COMPANION_FW_VERSION);
-    } else {
-      Serial.println("[OTA] Warning: failed to cancel OTA rollback state");
+  if (running) {
+    esp_ota_img_states_t state = ESP_OTA_IMG_UNDEFINED;
+    if (esp_ota_get_state_partition(running, &state) == ESP_OK &&
+        state == ESP_OTA_IMG_PENDING_VERIFY) {
+      if (esp_ota_mark_app_valid_cancel_rollback() == ESP_OK) {
+        Serial.printf("[OTA] Boot verified on partition %s (v%s)\n",
+                      running->label, X32_COMPANION_FW_VERSION);
+      } else {
+        Serial.println("[OTA] Warning: failed to cancel OTA rollback state");
+      }
     }
   }
+#ifdef X32_OTA_BOOT_SELFTEST
+  xTaskCreatePinnedToCore(
+      [](void *) {
+        for (int i = 0; i < 150; ++i) {
+          if (WiFi.status() == WL_CONNECTED) break;
+          vTaskDelay(pdMS_TO_TICKS(100));
+        }
+        if (WiFi.status() == WL_CONNECTED) {
+          otaUpdaterRequestCheck();
+        }
+        vTaskDelete(nullptr);
+      },
+      "ota_selftest", 4096, nullptr, 1, nullptr, 0);
+#endif
 }
 
 void otaUpdaterRequestCheck() {
   if (s_otaBusy.exchange(true)) return;
-  if (xTaskCreatePinnedToCore(otaCheckTask, "ota_check", 16384, nullptr, 2, nullptr, 0) != pdPASS) {
+  if (xTaskCreatePinnedToCore(otaCheckTask, "ota_check", 12288, nullptr, 2, nullptr, 0) != pdPASS) {
     s_otaBusy.store(false);
     setOtaState(OTA_ERROR, 0, nullptr, "Failed to start OTA check");
   }
@@ -527,7 +571,7 @@ void otaUpdaterRequestCheck() {
 
 void otaUpdaterRequestInstall() {
   if (s_otaBusy.exchange(true)) return;
-  if (xTaskCreatePinnedToCore(otaInstallTask, "ota_install", 16384, nullptr, 2, nullptr, 0) != pdPASS) {
+  if (xTaskCreatePinnedToCore(otaInstallTask, "ota_install", 12288, nullptr, 2, nullptr, 0) != pdPASS) {
     s_otaBusy.store(false);
     setOtaState(OTA_ERROR, 0, nullptr, "Failed to start OTA install");
   }
